@@ -1,17 +1,12 @@
-import { useState, useCallback } from 'react'
 import { Link, Outlet } from 'react-router'
-import WalletButton from './components/wallet-button'
+import { useAppKitAccount, useAppKitProvider, useAppKitNetwork } from '@reown/appkit/react'
 
 export default function App() {
-  const [wallet, setWallet] = useState(null)
+  const { address, isConnected } = useAppKitAccount()
+  const { walletProvider } = useAppKitProvider('eip155')
+  const { chainId } = useAppKitNetwork()
 
-  const handleConnect = useCallback((address, provider, chainId) => {
-    setWallet({ address, provider, chainId })
-  }, [])
-
-  const handleDisconnect = useCallback(() => {
-    setWallet(null)
-  }, [])
+  const wallet = isConnected ? { address, provider: walletProvider, chainId: Number(chainId) } : null
 
   return (
     <div className="app">
@@ -22,7 +17,7 @@ export default function App() {
             <Link to="/create">Create</Link>
             <Link to="/offers">Offers</Link>
           </div>
-          <WalletButton onConnect={handleConnect} onDisconnect={handleDisconnect} />
+          <appkit-button />
         </nav>
       </header>
       <main>

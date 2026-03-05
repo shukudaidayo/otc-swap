@@ -74,19 +74,8 @@ header nav {
   gap: 1rem;
 }
 
-.connect-btn {
+header nav appkit-button {
   margin-left: auto;
-  padding: 0.4rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-surface);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.connect-btn:hover:not(:disabled) {
-  border-color: var(--accent);
 }
 
 main {
@@ -445,71 +434,6 @@ footer {
   cursor: not-allowed;
 }
 
-/* Wallet button */
-.connect-btn.connected {
-  border-color: var(--accent);
-  font-family: monospace;
-  font-size: 0.85rem;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1.5rem;
-  min-width: 300px;
-  max-width: 400px;
-}
-
-.modal h3 {
-  margin-bottom: 1rem;
-}
-
-.wallet-error {
-  color: #e55;
-  font-size: 0.85rem;
-  margin-bottom: 0.75rem;
-}
-
-.wallet-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.wallet-option {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 0.95rem;
-}
-
-.wallet-option:hover {
-  border-color: var(--accent);
-}
-
-.wallet-option img {
-  border-radius: 4px;
-}
 
 /* Create page */
 .create form {

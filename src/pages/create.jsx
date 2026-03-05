@@ -96,7 +96,10 @@ export default function Create() {
       // Build order params
       const salt = Date.now()
       const takerAddr = taker.trim() || ZERO_ADDRESS
-      const exp = expiration ? Math.floor(new Date(expiration).getTime() / 1000) : 0
+      const THIRTY_DAYS = 30 * 24 * 60 * 60
+      const exp = expiration
+        ? Math.floor(new Date(expiration).getTime() / 1000)
+        : Math.floor(Date.now() / 1000) + THIRTY_DAYS
 
       const orderParams = {
         taker: takerAddr,
@@ -199,7 +202,7 @@ export default function Create() {
             {takerEns && <span className="ens-hint">{takerEns}</span>}
           </div>
           <div className="form-field">
-            <label htmlFor="expiration">Expiration (optional)</label>
+            <label htmlFor="expiration">Expiration (defaults to 30 days)</label>
             <input
               id="expiration"
               type="datetime-local"
