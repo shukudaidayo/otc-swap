@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useOutletContext, useNavigate } from 'react-router'
 import AssetInput from '../components/asset-input'
 import { ensureApproval, createOrder } from '../lib/contract'
-import { ZONE_ADDRESSES } from '../lib/constants'
+import { ZONE_ADDRESSES, WHITELISTED_ERC20 } from '../lib/constants'
+import { parseUnits } from 'ethers'
 import { resolveENS } from '../lib/ens'
 import TxChecklist, { buildSteps } from '../components/tx-checklist'
 
@@ -72,11 +73,25 @@ export default function Create() {
     // Validate assets
     const allAssets = [...makerAssets, ...takerAssets]
     for (const asset of allAssets) {
+      if (asset.assetType === 'NATIVE') {
+        if (!asset.amount || isNaN(Number(asset.amount)) || Number(asset.amount) <= 0) {
+          setError('ETH amount must be a positive number.')
+          return
+        }
+        continue
+      }
       if (!asset.token || !asset.token.match(/^0x[0-9a-fA-F]{40}$/)) {
         setError('Invalid contract address: ' + (asset.token || '(empty)'))
         return
       }
-      if (asset.assetType !== 'ERC20' && !asset.tokenId && asset.tokenId !== '0') {
+      if (asset.assetType === 'ERC20') {
+        if (!asset.amount || isNaN(Number(asset.amount)) || Number(asset.amount) <= 0) {
+          setError('ERC-20 amount must be a positive number.')
+          return
+        }
+        continue
+      }
+      if (!asset.tokenId && asset.tokenId !== '0') {
         setError('Token ID is required for NFT assets.')
         return
       }
@@ -93,16 +108,23 @@ export default function Create() {
     }
 
     try {
-      // Request approvals for maker assets to Seaport
+      // Request approvals for maker assets to Seaport (skip native ETH)
       const approvalSteps = txSteps.filter((s) => s.type === 'approval')
       for (let i = 0; i < approvalSteps.length; i++) {
         const step = approvalSteps[i]
         const stepIndex = txSteps.indexOf(step)
         updateStep(stepIndex, { status: 'signing' })
 
-        const asset = makerAssets.find((a) => a.token.toLowerCase() === step.tokenAddress.toLowerCase())
+        const matchingAssets = makerAssets.filter((a) => a.token && a.token.toLowerCase() === step.tokenAddress.toLowerCase())
+        const asset = matchingAssets[0]
         const itemType = asset?.assetType === 'ERC20' ? 1 : asset?.assetType === 'ERC1155' ? 3 : 2
-        const tx = await ensureApproval(wallet.provider, step.tokenAddress, wallet.address, itemType)
+        // For ERC-20, compute exact approval amount in base units
+        let approvalAmount
+        if (itemType === 1) {
+          const decimals = (WHITELISTED_ERC20[wallet.chainId]?.[asset.token])?.decimals ?? 18
+          approvalAmount = matchingAssets.reduce((sum, a) => sum + parseUnits(a.amount || '0', decimals), 0n).toString()
+        }
+        const tx = await ensureApproval(wallet.provider, step.tokenAddress, wallet.address, itemType, approvalAmount)
         if (tx) {
           updateStep(stepIndex, { status: 'confirming' })
           await tx.wait()
@@ -170,6 +192,7 @@ export default function Create() {
                 onChange={(updated) => updateAsset(makerAssets, setMakerAssets, i, updated)}
                 onRemove={() => removeAsset(makerAssets, setMakerAssets, i)}
                 chainId={wallet.chainId}
+                side="offer"
               />
             ))}
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => addAsset(makerAssets, setMakerAssets)}>
@@ -186,6 +209,7 @@ export default function Create() {
                 onChange={(updated) => updateAsset(takerAssets, setTakerAssets, i, updated)}
                 onRemove={() => removeAsset(takerAssets, setTakerAssets, i)}
                 chainId={wallet.chainId}
+                side="consideration"
               />
             ))}
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => addAsset(takerAssets, setTakerAssets)}>

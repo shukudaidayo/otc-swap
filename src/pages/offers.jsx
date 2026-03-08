@@ -3,7 +3,8 @@ import { Link, useOutletContext } from 'react-router'
 import { queryOrderEvents, getOrderStatus, deriveOrderStatus } from '../lib/contract'
 import { truncateAddress } from '../lib/wallet'
 import AddressDisplay from '../components/address-display'
-import { ZONE_ADDRESSES } from '../lib/constants'
+import { ZONE_ADDRESSES, WHITELISTED_ERC20 } from '../lib/constants'
+import { formatUnits } from 'ethers'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const PAGE_SIZE = 20
@@ -159,7 +160,7 @@ function OfferCard({ order, chainId }) {
       <div className="offer-card-side">
         <span className="offer-label">Maker</span>
         <AddressDisplay address={order.maker} chainId={chainId} />
-        {params && <AssetSummary items={params.offer} />}
+        {params && <AssetSummary items={params.offer} chainId={chainId} />}
       </div>
       <div className="offer-card-arrow">&#8644;</div>
       <div className="offer-card-side">
@@ -169,7 +170,7 @@ function OfferCard({ order, chainId }) {
         ) : (
           <AddressDisplay address={order.taker} chainId={chainId} />
         )}
-        {params && <AssetSummary items={params.consideration} />}
+        {params && <AssetSummary items={params.consideration} chainId={chainId} />}
       </div>
       <div className="offer-card-meta">
         <span className={`status-badge status-${order.status}`}>
@@ -180,16 +181,27 @@ function OfferCard({ order, chainId }) {
   )
 }
 
-function AssetSummary({ items }) {
+function AssetSummary({ items, chainId }) {
   return (
     <div className="offer-assets">
-      {items.map((item, i) => (
-        <span key={i} className="offer-asset-tag">
-          {truncateAddress(item.token)}
-          {item.identifierOrCriteria !== '0' && ` #${item.identifierOrCriteria}`}
-          {Number(item.startAmount) > 1 && ` x${item.startAmount}`}
-        </span>
-      ))}
+      {items.map((item, i) => {
+        const it = Number(item.itemType)
+        if (it === 0) {
+          return <span key={i} className="offer-asset-tag">{formatUnits(item.startAmount, 18)} ETH</span>
+        }
+        if (it === 1) {
+          const info = (WHITELISTED_ERC20[chainId] || {})[item.token]
+          const amount = formatUnits(item.startAmount, info?.decimals ?? 18)
+          return <span key={i} className="offer-asset-tag">{amount} {info?.symbol || truncateAddress(item.token)}</span>
+        }
+        return (
+          <span key={i} className="offer-asset-tag">
+            {truncateAddress(item.token)}
+            {item.identifierOrCriteria !== '0' && ` #${item.identifierOrCriteria}`}
+            {Number(item.startAmount) > 1 && ` x${item.startAmount}`}
+          </span>
+        )
+      })}
     </div>
   )
 }

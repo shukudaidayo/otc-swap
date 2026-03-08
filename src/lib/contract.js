@@ -1,7 +1,7 @@
-import { BrowserProvider, Contract, Interface, JsonRpcProvider, zeroPadValue, ZeroHash } from 'ethers'
+import { BrowserProvider, Contract, Interface, JsonRpcProvider, zeroPadValue, ZeroHash, parseUnits } from 'ethers'
 import { Seaport } from '@opensea/seaport-js'
 import { ItemType } from '@opensea/seaport-js/lib/constants'
-import { CHAINS, SEAPORT_ADDRESS, ZONE_ADDRESSES, ZONE_DEPLOY_BLOCKS, ZONE_ABI } from './constants'
+import { CHAINS, SEAPORT_ADDRESS, ZONE_ADDRESSES, ZONE_DEPLOY_BLOCKS, ZONE_ABI, WHITELISTED_ERC20 } from './constants'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
@@ -36,14 +36,15 @@ export async function getSeaport(rawProvider) {
  * For ERC-721/ERC-1155: setApprovalForAll
  * For ERC-20: approve max amount
  */
-export async function ensureApproval(rawProvider, tokenAddress, owner, itemType) {
+export async function ensureApproval(rawProvider, tokenAddress, owner, itemType, amount) {
   const signer = await getSigner(rawProvider)
 
   if (itemType === ItemType.ERC20) {
     const token = new Contract(tokenAddress, ERC20_APPROVE_ABI, signer)
+    const needed = amount ? BigInt(amount) : 2n ** 256n - 1n
     const allowance = await token.allowance(owner, SEAPORT_ADDRESS)
-    if (allowance > 0n) return null
-    const tx = await token.approve(SEAPORT_ADDRESS, 2n ** 256n - 1n)
+    if (allowance >= needed) return null
+    const tx = await token.approve(SEAPORT_ADDRESS, needed)
     return tx
   }
 
@@ -58,11 +59,17 @@ export async function ensureApproval(rawProvider, tokenAddress, owner, itemType)
 /**
  * Convert our internal asset format to Seaport offer items.
  */
-function toSeaportOfferItem(asset) {
+function toSeaportOfferItem(asset, chainId) {
+  if (asset.assetType === 'NATIVE' || asset.itemType === ItemType.NATIVE) {
+    return {
+      amount: parseUnits(asset.amount || '0', 18).toString(),
+    }
+  }
   if (asset.assetType === 'ERC20' || asset.itemType === ItemType.ERC20) {
+    const decimals = chainId ? (WHITELISTED_ERC20[chainId]?.[asset.token]?.decimals ?? 18) : 18
     return {
       token: asset.token,
-      amount: asset.amount.toString(),
+      amount: parseUnits(asset.amount || '0', decimals).toString(),
     }
   }
   const seaportItemType = asset.assetType === 'ERC1155' || asset.itemType === ItemType.ERC1155
@@ -83,8 +90,8 @@ function toSeaportOfferItem(asset) {
 /**
  * Convert our internal asset format to Seaport consideration items.
  */
-function toSeaportConsiderationItem(asset, recipient) {
-  return { ...toSeaportOfferItem(asset), recipient }
+function toSeaportConsiderationItem(asset, recipient, chainId) {
+  return { ...toSeaportOfferItem(asset, chainId), recipient }
 }
 
 /**
@@ -107,8 +114,8 @@ export async function createOrder(rawProvider, chainId, {
     ? zeroPadValue(taker, 32)
     : ZeroHash
 
-  const offer = makerAssets.map(toSeaportOfferItem)
-  const consideration = takerAssets.map((a) => toSeaportConsiderationItem(a, makerAddress))
+  const offer = makerAssets.map((a) => toSeaportOfferItem(a, chainId))
+  const consideration = takerAssets.map((a) => toSeaportConsiderationItem(a, makerAddress, chainId))
 
   const endTime = expiration
     ? Math.floor(new Date(expiration).getTime() / 1000).toString()
@@ -269,7 +276,7 @@ export async function queryOrderEvents(chainId, zoneAddress) {
 export function deriveOrderStatus(seaportStatus, endTime) {
   if (!seaportStatus) return 'unknown'
   if (seaportStatus.isCancelled) return 'cancelled'
-  if (seaportStatus.totalFilled === seaportStatus.totalSize) return 'filled'
+  if (seaportStatus.totalFilled > 0 && seaportStatus.totalFilled === seaportStatus.totalSize) return 'filled'
   if (endTime && Number(endTime) < Date.now() / 1000) return 'expired'
   return 'open'
 }

@@ -43,6 +43,7 @@ export function buildSteps(assets, actionLabel, actionLabel2) {
   const seen = new Set()
 
   for (const asset of assets) {
+    if (asset.assetType === 'NATIVE' || !asset.token) continue
     const key = asset.token.toLowerCase()
     if (!seen.has(key)) {
       seen.add(key)

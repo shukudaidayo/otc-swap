@@ -6,7 +6,9 @@ import AddressDisplay from '../components/address-display'
 import WarningBanner from '../components/warning-banner'
 import { truncateAddress } from '../lib/wallet'
 import TxChecklist, { buildSteps } from '../components/tx-checklist'
+import { WHITELISTED_ERC20 } from '../lib/constants'
 import { ItemType } from '@opensea/seaport-js/lib/constants'
+import { formatUnits } from 'ethers'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
@@ -57,14 +59,18 @@ export default function Swap() {
 
     const params = orderData.order.parameters
     // Build taker assets from consideration items
-    const takerAssets = params.consideration.map((c) => ({
-      token: c.token,
-      tokenId: c.identifierOrCriteria,
-      amount: c.startAmount,
-      assetType: Number(c.itemType) === ItemType.ERC20 ? 'ERC20' :
-                 Number(c.itemType) === ItemType.ERC1155 ? 'ERC1155' : 'ERC721',
-      itemType: Number(c.itemType),
-    }))
+    const takerAssets = params.consideration.map((c) => {
+      const it = Number(c.itemType)
+      return {
+        token: c.token,
+        tokenId: c.identifierOrCriteria,
+        amount: c.startAmount,
+        assetType: it === ItemType.NATIVE ? 'NATIVE' :
+                   it === ItemType.ERC20 ? 'ERC20' :
+                   it === ItemType.ERC1155 ? 'ERC1155' : 'ERC721',
+        itemType: it,
+      }
+    })
 
     const txSteps = buildSteps(takerAssets, 'Accept Swap')
     setSteps(txSteps)
@@ -81,8 +87,13 @@ export default function Swap() {
         const stepIndex = txSteps.indexOf(step)
         updateStep(stepIndex, { status: 'signing' })
 
-        const asset = takerAssets.find((a) => a.token.toLowerCase() === step.tokenAddress.toLowerCase())
-        const tx = await ensureApproval(wallet.provider, step.tokenAddress, wallet.address, asset?.itemType ?? ItemType.ERC721)
+        const matchingAssets = takerAssets.filter((a) => a.token && a.token.toLowerCase() === step.tokenAddress.toLowerCase())
+        const asset = matchingAssets[0]
+        // Sum amounts for ERC-20 in case multiple consideration items use the same token
+        const totalAmount = asset?.itemType === ItemType.ERC20
+          ? matchingAssets.reduce((sum, a) => sum + BigInt(a.amount), 0n).toString()
+          : undefined
+        const tx = await ensureApproval(wallet.provider, step.tokenAddress, wallet.address, asset?.itemType ?? ItemType.ERC721, totalAmount)
         if (tx) {
           updateStep(stepIndex, { status: 'confirming' })
           await tx.wait()
@@ -169,17 +180,27 @@ export default function Swap() {
   const isOpen = statusLabel === 'open'
   const wrongChain = wallet && wallet.chainId !== Number(chainId)
 
-  // Parse offer/consideration for display
+  // Parse offer/consideration for display (format fungible amounts to human-readable)
+  function formatAmount(item) {
+    const it = Number(item.itemType)
+    if (it === ItemType.NATIVE) return formatUnits(item.startAmount, 18)
+    if (it === ItemType.ERC20) {
+      const info = (WHITELISTED_ERC20[Number(chainId)] || {})[item.token]
+      return formatUnits(item.startAmount, info?.decimals ?? 18)
+    }
+    return item.startAmount
+  }
+
   const offerAssets = params.offer.map((o) => ({
     token: o.token,
     tokenId: o.identifierOrCriteria,
-    amount: o.startAmount,
+    amount: formatAmount(o),
     itemType: Number(o.itemType),
   }))
   const considerationAssets = params.consideration.map((c) => ({
     token: c.token,
     tokenId: c.identifierOrCriteria,
-    amount: c.startAmount,
+    amount: formatAmount(c),
     itemType: Number(c.itemType),
   }))
 

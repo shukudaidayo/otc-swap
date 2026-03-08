@@ -105,11 +105,11 @@ Implementation: `contracts/src/OTCZone.sol`
 
 The contract implements Seaport 1.6's `ZoneInterface` (from `seaport-types`). It has no owner, no mutable state, no admin functions, and no access to user funds. It serves three purposes:
 1. **Taker validation**: Checks that the fulfiller matches the allowed taker in `zoneHash`.
-2. **ERC-20 whitelist**: Rejects orders containing non-whitelisted ERC-20 tokens, both at registration and at fulfillment. Whitelist is set at deployment (immutable — no admin can modify it). Planned tokens: WETH, USDC, EURC, USDS — exact list TBD.
+2. **ERC-20 whitelist**: Rejects orders containing non-whitelisted ERC-20 tokens, both at registration and at fulfillment. Whitelist is set at deployment (immutable — no admin can modify it). Mainnet whitelist: WETH, USDC, USDT, USDS, EURC.
 3. **Order registry**: Makers call `registerOrder` after signing to publish their order for discovery. The offers page queries `OrderRegistered` events.
 
 ERC-20 enforcement happens at three layers:
-- **Frontend**: The Create page only offers whitelisted ERC-20s (WETH, USDC, EURC, USDS, etc.).
+- **Frontend**: The Create page only offers whitelisted ERC-20s (WETH, USDC, USDT, USDS, EURC).
 - **Registration**: `registerOrder` reverts if the order contains a non-whitelisted ERC-20.
 - **Fulfillment**: `validateOrder` reverts if Seaport tries to settle an order with a non-whitelisted ERC-20.
 

@@ -4,30 +4,30 @@ Peer-to-peer NFT OTC swap site. No backend, no database — all state is on-chai
 
 ## Project Structure
 
-- `SPEC.md` — Full technical specification (source of truth for all design decisions)
+- `SPEC-SEAPORT.md` — Full technical specification (source of truth for all design decisions)
 - `contracts/` — Solidity smart contracts (Foundry)
 - `src/` — Frontend (React + Vite)
 - `refs/` — Reference codebases (sudoswap otc-ui-public, swap.kiwi) — gitignored, for study only
 
 ## Tech Stack
 
-- **Smart contracts**: Solidity, Foundry (forge/cast)
+- **Smart contracts**: Solidity 0.8.28, Foundry (forge/cast), Seaport 1.6
 - **Frontend**: React 19, ethers.js v6, Vite
-- **Wallet**: EIP-6963 (no third-party wallet SDK)
+- **Wallet**: Reown AppKit (@reown/appkit + @reown/appkit-adapter-ethers)
 - **Styling**: Minimal custom CSS, no framework
 - **NFT metadata**: On-chain tokenURI + IPFS resolution (no OpenSea/Alchemy)
 
 ## Key Design Principles
 
-- Minimize dependencies (3 runtime deps: ethers, react, react-router)
+- Minimize dependencies (runtime deps: ethers, react, react-router, @reown/appkit)
 - No backend, no API keys, no proprietary services
 - Anti-scam token verification is a first-class concern
-- Contract is non-upgradeable with a one-way kill switch
+- Seaport handles all asset transfers — OTCZone never touches user funds
 - Everything should be forkable and maintainable by someone else
 
 ## Commands
 
-- `forge build` — Compile contracts
-- `forge test` — Run contract tests
+- `forge build` — Compile contracts (run from `contracts/`)
+- `forge test` — Run contract tests (run from `contracts/`)
 - `npm run dev` — Start frontend dev server
 - `npm run build` — Build frontend for production
