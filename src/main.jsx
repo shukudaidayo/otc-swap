@@ -1,3 +1,6 @@
+import { Buffer } from 'buffer'
+globalThis.Buffer = Buffer
+
 import './lib/appkit'
 import { createRoot } from 'react-dom/client'
 import { createHashRouter, RouterProvider } from 'react-router'
