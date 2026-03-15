@@ -18,6 +18,7 @@ function resolveItemType(asset) {
 export default function AssetCard({ asset, chainId }) {
   const [metadata, setMetadata] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [verification, setVerification] = useState(null)
 
   const itemType = resolveItemType(asset)
   const isNative = itemType === 0
@@ -52,6 +53,18 @@ export default function AssetCard({ asset, chainId }) {
     return () => { cancelled = true }
   }, [asset.token, asset.tokenId, itemType, chainId, isERC20, isNative, isERC1155])
 
+  // Fetch verification status (async — may call Alchemy)
+  useEffect(() => {
+    if (!asset.token || !chainId || isNative) return
+
+    let cancelled = false
+    getVerificationStatus(chainId, asset.token, metadata?.name).then((v) => {
+      if (!cancelled) setVerification(v)
+    })
+
+    return () => { cancelled = true }
+  }, [asset.token, chainId, isNative, metadata?.name])
+
   // Native ETH — simple display, no verification needed
   if (isNative) {
     return (
@@ -69,7 +82,7 @@ export default function AssetCard({ asset, chainId }) {
     )
   }
 
-  const verification = getVerificationStatus(chainId, asset.token, metadata?.name)
+  const vStatus = verification || { status: 'unverified', message: null }
   const etherscanUrl = getEtherscanUrl(chainId, asset.token)
 
   // Display name for ERC-20
@@ -78,7 +91,7 @@ export default function AssetCard({ asset, chainId }) {
     : metadata?.name || `#${asset.tokenId}`
 
   return (
-    <div className={`asset-card asset-card-${verification.status}`}>
+    <div className={`asset-card asset-card-${vStatus.status}`}>
       <div className="asset-card-image">
         {isERC20 ? (
           <div className="asset-card-placeholder">$</div>
@@ -92,8 +105,8 @@ export default function AssetCard({ asset, chainId }) {
       </div>
       <div className="asset-card-info">
         <span className="asset-card-name">
-          <span className="verification-badge" title={verification.status}>
-            {BADGE[verification.status]}
+          <span className="verification-badge" title={vStatus.status}>
+            {BADGE[vStatus.status]}
           </span>
           {displayName}
         </span>
@@ -113,9 +126,9 @@ export default function AssetCard({ asset, chainId }) {
           )}
           {isNFT && <span className="asset-card-tokenid">#{asset.tokenId}</span>}
         </div>
-        {verification.status !== 'verified' && verification.message && (
-          <p className={`verification-msg verification-${verification.status}`}>
-            {verification.message}
+        {vStatus.status !== 'verified' && vStatus.message && (
+          <p className={`verification-msg verification-${vStatus.status}`}>
+            {vStatus.message}
           </p>
         )}
       </div>

@@ -1,4 +1,5 @@
 import verifiedTokens from '../data/verified-tokens.json'
+import { fetchContractVerification } from './alchemy'
 
 // Index verified tokens by name/symbol (lowercased) for impostor detection
 const nameIndex = {}
@@ -13,23 +14,29 @@ for (const [chainId, tokens] of Object.entries(verifiedTokens)) {
   }
 }
 
+// OpenSea safelist statuses that count as verified
+const VERIFIED_STATUSES = new Set(['verified', 'approved'])
+
 /**
- * Check verification status of a token.
+ * Check verification status of a token (async — queries Alchemy for OpenSea verification).
+ * Falls back to static verified-tokens.json if Alchemy is unavailable.
  * Returns: { status: 'verified' | 'unverified' | 'suspicious', info, message }
  */
-export function getVerificationStatus(chainId, tokenAddress, metadataName) {
+export async function getVerificationStatus(chainId, tokenAddress, metadataName) {
   const chainTokens = verifiedTokens[String(chainId)] || {}
   const normalized = tokenAddress.toLowerCase()
 
-  // Check if this exact address is verified
+  // Check static list first (instant, no API call)
   for (const [addr, info] of Object.entries(chainTokens)) {
     if (addr.toLowerCase() === normalized) {
-      return {
-        status: 'verified',
-        info,
-        message: null,
-      }
+      return { status: 'verified', info, message: null }
     }
+  }
+
+  // Check Alchemy for OpenSea verification status
+  const safelistStatus = await fetchContractVerification(chainId, tokenAddress)
+  if (safelistStatus && VERIFIED_STATUSES.has(safelistStatus)) {
+    return { status: 'verified', info: null, message: null }
   }
 
   // Check for impostor: metadata name matches a verified token but address differs

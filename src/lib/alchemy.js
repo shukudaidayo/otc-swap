@@ -54,3 +54,40 @@ export async function fetchWalletNFTs(address, chainId, pageKey = null) {
 
   return { nfts, pageKey: data.data?.pageKey || null }
 }
+
+// Cache contract metadata to avoid repeated API calls
+const contractMetadataCache = new Map()
+
+/**
+ * Fetch contract metadata from Alchemy's NFT API.
+ * Returns the openseaMetadata.safelistRequestStatus or null.
+ */
+export async function fetchContractVerification(chainId, contractAddress) {
+  const key = `${chainId}:${contractAddress.toLowerCase()}`
+  if (contractMetadataCache.has(key)) return contractMetadataCache.get(key)
+
+  if (!ALCHEMY_API_KEY) return null
+
+  const network = CHAIN_NETWORKS[chainId]
+  if (!network) return null
+
+  try {
+    const res = await fetch(
+      `https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getContractMetadata?contractAddress=${contractAddress}`,
+    )
+    if (!res.ok) {
+      contractMetadataCache.set(key, null)
+      return null
+    }
+
+    const data = await res.json()
+    const status = data.openSeaMetadata?.safelistRequestStatus
+      || data.openseaMetadata?.safelistRequestStatus
+      || null
+    contractMetadataCache.set(key, status)
+    return status
+  } catch {
+    contractMetadataCache.set(key, null)
+    return null
+  }
+}
