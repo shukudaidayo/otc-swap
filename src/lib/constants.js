@@ -11,13 +11,13 @@ export const SEAPORT_ADDRESS = '0x0000000000000068F116a894984e2DB1123eB395'
 // OTCZone contract addresses per chain
 export const ZONE_ADDRESSES = {
   1: null,        // mainnet — not deployed yet
-  11155111: '0x00da05DE41F1ad55f20c64e866dFb8811E34A7c2',
+  11155111: '0x5cc927a439Ea3C5BC55e7F8d41D1fFc524238325',
 }
 
 // Block number at or before OTCZone deployment — used as fromBlock for event queries
 export const ZONE_DEPLOY_BLOCKS = {
   1: 0,
-  11155111: 10442097,
+  11155111: 10467307,
 }
 
 // Whitelisted ERC-20 tokens per chain
@@ -41,32 +41,39 @@ export const ZONE_ABI = [
     type: 'function',
     name: 'registerOrder',
     inputs: [
-      { name: 'orderHash', type: 'bytes32' },
-      { name: 'maker', type: 'address' },
-      { name: 'taker', type: 'address' },
       {
-        name: 'offer',
-        type: 'tuple[]',
+        name: 'reg',
+        type: 'tuple',
         components: [
-          { name: 'itemType', type: 'uint8' },
-          { name: 'token', type: 'address' },
-          { name: 'identifier', type: 'uint256' },
-          { name: 'amount', type: 'uint256' },
+          { name: 'orderHash', type: 'bytes32' },
+          { name: 'maker', type: 'address' },
+          { name: 'taker', type: 'address' },
+          {
+            name: 'offer',
+            type: 'tuple[]',
+            components: [
+              { name: 'itemType', type: 'uint8' },
+              { name: 'token', type: 'address' },
+              { name: 'identifier', type: 'uint256' },
+              { name: 'amount', type: 'uint256' },
+            ],
+          },
+          {
+            name: 'consideration',
+            type: 'tuple[]',
+            components: [
+              { name: 'itemType', type: 'uint8' },
+              { name: 'token', type: 'address' },
+              { name: 'identifier', type: 'uint256' },
+              { name: 'amount', type: 'uint256' },
+              { name: 'recipient', type: 'address' },
+            ],
+          },
+          { name: 'signature', type: 'bytes' },
+          { name: 'orderURI', type: 'string' },
+          { name: 'memo', type: 'string' },
         ],
       },
-      {
-        name: 'consideration',
-        type: 'tuple[]',
-        components: [
-          { name: 'itemType', type: 'uint8' },
-          { name: 'token', type: 'address' },
-          { name: 'identifier', type: 'uint256' },
-          { name: 'amount', type: 'uint256' },
-          { name: 'recipient', type: 'address' },
-        ],
-      },
-      { name: 'signature', type: 'bytes' },
-      { name: 'orderURI', type: 'string' },
     ],
     outputs: [],
     stateMutability: 'nonpayable',
@@ -79,6 +86,7 @@ export const ZONE_ABI = [
       { name: 'maker', type: 'address', indexed: true },
       { name: 'taker', type: 'address', indexed: true },
       { name: 'orderURI', type: 'string', indexed: false },
+      { name: 'memo', type: 'string', indexed: false },
     ],
     anonymous: false,
   },

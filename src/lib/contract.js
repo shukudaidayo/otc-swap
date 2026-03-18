@@ -104,6 +104,7 @@ export async function createOrder(rawProvider, chainId, {
   takerAssets,
   expiration,
   makerAddress,
+  memo = '',
 }) {
   const zoneAddress = ZONE_ADDRESSES[chainId]
   if (!zoneAddress) throw new Error(`No OTCZone deployed on chain ${chainId}`)
@@ -161,7 +162,17 @@ export async function createOrder(rawProvider, chainId, {
 
   const takerAddress = taker && taker !== ZERO_ADDRESS ? taker : ZERO_ADDRESS
 
-  const tx = await zone.registerOrder(orderHash, makerAddress, takerAddress, spentItems, receivedItems, order.signature, orderURI)
+  const reg = {
+    orderHash,
+    maker: makerAddress,
+    taker: takerAddress,
+    offer: spentItems,
+    consideration: receivedItems,
+    signature: order.signature,
+    orderURI,
+    memo,
+  }
+  const tx = await zone.registerOrder(reg)
 
   return {
     order,
@@ -193,6 +204,7 @@ export async function getOrderFromTx(chainId, txHash) {
           orderHash: parsed.args.orderHash,
           maker: parsed.args.maker,
           taker: parsed.args.taker,
+          memo: parsed.args.memo || '',
           order, // The full signed Seaport order (OrderWithCounter)
         }
       }
@@ -261,6 +273,7 @@ export async function queryOrderEvents(chainId, zoneAddress) {
       orderHash: log.args.orderHash,
       maker: log.args.maker,
       taker: log.args.taker,
+      memo: log.args.memo || '',
       order,
       blockNumber: log.blockNumber,
       transactionHash: log.transactionHash,

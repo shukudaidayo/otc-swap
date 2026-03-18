@@ -27,6 +27,7 @@ export default function Create() {
   const [submitting, setSubmitting] = useState(false)
   const [takerEns, setTakerEns] = useState(null) // reverse: address → name
   const [takerResolved, setTakerResolved] = useState(null) // forward: name → address
+  const [memo, setMemo] = useState('')
   const [pickerSide, setPickerSide] = useState(null) // 'offer' | 'consideration' | null
 
   // Resolve ENS: address → name (reverse) or name → address (forward)
@@ -181,6 +182,7 @@ export default function Create() {
         takerAssets,
         expiration,
         makerAddress: wallet.address,
+        memo: memo.trim(),
       }
 
       // createOrder handles signing + registration
@@ -205,7 +207,7 @@ export default function Create() {
     } finally {
       setSubmitting(false)
     }
-  }, [wallet, makerAssets, takerAssets, taker, expiration, navigate])
+  }, [wallet, makerAssets, takerAssets, taker, expiration, memo, navigate])
 
   if (!wallet) {
     return (
@@ -295,6 +297,29 @@ export default function Create() {
               onChange={(e) => setExpiration(e.target.value)}
             />
           </div>
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="memo">Memo (optional, max 280 bytes)</label>
+          <textarea
+            id="memo"
+            placeholder="Add a note to your swap..."
+            value={memo}
+            onChange={(e) => {
+              const val = e.target.value
+              const encoded = new TextEncoder().encode(val)
+              if (encoded.length <= 280) {
+                setMemo(val)
+              } else {
+                // Truncate to 280 bytes, decoding back to a valid string
+                setMemo(new TextDecoder().decode(encoded.slice(0, 280)))
+              }
+            }}
+            rows={4}
+          />
+          {memo.length > 0 && (
+            <span className="char-count">{new TextEncoder().encode(memo).length}/280</span>
+          )}
         </div>
 
         {error && <p className="form-error">{error}</p>}

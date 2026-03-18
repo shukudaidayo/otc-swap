@@ -485,8 +485,29 @@ footer {
 }
 
 .form-field input,
-.form-field select {
+.form-field select,
+.form-field textarea {
   width: 100%;
+}
+
+.form-field textarea {
+  resize: vertical;
+  min-height: 2.5rem;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0.5rem 0.7rem;
+  background: var(--bg-input, var(--bg-secondary));
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.char-count {
+  display: block;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
 }
 
 .form-error {
@@ -850,6 +871,21 @@ footer {
   font-size: 0.7rem;
   color: #e55;
   margin-top: 0.3rem;
+}
+
+.offer-card-memo {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swap-memo {
+  font-style: italic;
 }
 
 @media (max-width: 640px) {

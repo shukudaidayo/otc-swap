@@ -306,6 +306,11 @@ export default function Swap() {
       </div>
 
       <div className="swap-meta">
+        {orderData.memo && (
+          <p className="swap-memo">
+            <span className="meta-label">Memo:</span> {orderData.memo}
+          </p>
+        )}
         {params.endTime && Number(params.endTime) > 0 && (
           <p>
             <span className="meta-label">Expires:</span>{' '}

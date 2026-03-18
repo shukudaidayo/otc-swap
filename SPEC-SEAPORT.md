@@ -32,6 +32,7 @@ Both otc.sudoswap.xyz and opensea.io/deals are dead. The ecosystem needs a simpl
 - **Swap structure**: Multi-asset <-> multi-asset (each side can have 1+ items)
 - **Counterparty**: Optionally restricted to a specific address, or open to anyone
 - **Expiration**: Required (default 30 days, configurable in UI)
+- **Memo**: Optional short message (max 280 bytes) attached to the order at registration
 - **Wallets**: EOAs and single-owner smart wallets (EIP-1271). Multisigs (e.g., Safe) are not supported as **makers** due to the asynchronous multi-signer signing flow, but work fine as **takers** (they call `fulfillOrder` directly as `msg.sender`).
 - **Cross-chain**: Out of scope (Seaport is per-chain)
 
@@ -109,14 +110,27 @@ The contract implements Seaport 1.6's `ZoneInterface` (from `seaport-types`). It
 It serves three purposes:
 1. **Taker validation**: Checks that the fulfiller matches the allowed taker in `zoneHash`.
 2. **ERC-20 whitelist**: Rejects orders containing non-whitelisted ERC-20 tokens, both at registration and at fulfillment. Whitelist is set at deployment (immutable — no admin can modify it). Mainnet whitelist: WETH, USDC, USDT, USDS, EURC.
-3. **Order registry**: `registerOrder` publishes signed orders for discovery. It verifies the maker's EIP-712 signature on-chain using Solady's `SignatureCheckerLib`, which supports EOA signatures (both standard 65-byte and EIP-2098 compact 64-byte) and EIP-1271 contract wallet signatures. The indexed `maker` in the `OrderRegistered` event is cryptographically guaranteed to be the actual order signer — regardless of who submits the transaction. This allows proxy wallets, gas sponsors, and smart wallets to register orders on behalf of makers.
+3. **Order registry**: `registerOrder` publishes signed orders for discovery. It accepts a single `OrderRegistration` struct (defined outside the contract for clean ABI generation) containing the order hash, maker, taker, offer/consideration items, signature, orderURI, and an optional memo (max 280 bytes). It verifies the maker's EIP-712 signature on-chain using Solady's `SignatureCheckerLib`, which supports EOA signatures (both standard 65-byte and EIP-2098 compact 64-byte) and EIP-1271 contract wallet signatures. The indexed `maker` in the `OrderRegistered` event is cryptographically guaranteed to be the actual order signer — regardless of who submits the transaction. This allows proxy wallets, gas sponsors, and smart wallets to register orders on behalf of makers.
+
+```solidity
+struct OrderRegistration {
+    bytes32 orderHash;
+    address maker;
+    address taker;
+    SpentItem[] offer;
+    ReceivedItem[] consideration;
+    bytes signature;
+    string orderURI;
+    string memo;        // optional, max 280 bytes
+}
+```
 
 ERC-20 enforcement happens at three layers:
 - **Frontend**: The Create page only offers whitelisted ERC-20s (WETH, USDC, USDT, USDS, EURC).
 - **Registration**: `registerOrder` reverts if the order contains a non-whitelisted ERC-20.
 - **Fulfillment**: `validateOrder` reverts if Seaport tries to settle an order with a non-whitelisted ERC-20.
 
-The `orderURI` field stores the base64-encoded signed order, so the frontend can reconstruct the swap page from the event alone.
+The `orderURI` field stores the base64-encoded signed order, so the frontend can reconstruct the swap page from the event alone. The `memo` field is emitted in the `OrderRegistered` event and displayed on the swap and offers pages when present.
 
 **Note:** Seaport also allows the offerer to cancel by incrementing their counter (bulk cancel) or cancelling specific orders on-chain.
 
@@ -167,6 +181,7 @@ Hash-based routing (works on static hosts, no server config needed).
    - **NFT picker**: "Pick from wallet" button on each side opens a modal grid of NFTs. On the "You Send" side, fetches the connected wallet's NFTs. On the "You Receive" side, fetches the taker's NFTs (grayed out if no taker address is entered; debounce on address input). Uses Alchemy Portfolio API (`POST /data/v1/{apiKey}/assets/nfts/by-address`). Spam NFTs excluded via `excludeFilters: ["SPAM"]`. ERC-1155 tokens with balance > 1 show a quantity picker. Manual entry remains as fallback.
    - Optional: taker address field (with ENS resolution)
    - Expiration (default 30 days)
+   - Optional memo (max 280 bytes) — stored on-chain in the `OrderRegistered` event
    - Asset preview with NFT metadata and verification status
    - Click "Create Swap" → approve assets → sign EIP-712 order → register on-chain → generate shareable link
 
@@ -174,6 +189,7 @@ Hash-based routing (works on static hosts, no server config needed).
    - Fetch `OrderRegistered` event from the registration tx receipt
    - Extract signed order from `orderURI` field
    - Display both sides with NFT previews and verification warnings
+   - Display memo (if present) in the swap metadata section
    - Validate order on-chain via Seaport `getOrderStatus` (check if filled/cancelled)
    - If valid and user is eligible: approval flow + "Accept Swap" button
    - If user is maker: "Cancel" button
@@ -184,6 +200,7 @@ Hash-based routing (works on static hosts, no server config needed).
    - "All Open" tab: paginated, all open orders
    - "Completed" tab: filled orders
    - Populated by querying `OrderRegistered` events from OTCZone, cross-referenced with Seaport for order status (filled/cancelled)
+   - Offer cards show memo (truncated) when present
 
 #### URL Encoding
 
@@ -286,6 +303,21 @@ The swap page and offers page perform on-chain balance checks to verify that par
 
 Friendly error messages map known Seaport/Zone revert selectors (e.g., `0x82b42900` → "You are not the authorized taker") to human-readable messages.
 
+### Memo Moderation
+
+The memo field is stored permanently in on-chain event logs and cannot be deleted. Current mitigations:
+
+- **Plain text only.** React's default text rendering escapes HTML/script injection. Never use `dangerouslySetInnerHTML` on memos.
+- **No auto-linking.** URLs in memos are displayed as plain text, not clickable links. Prevents phishing.
+- **Truncated on offers page.** Limits visibility of spam in the browsing view.
+
+If abuse occurs post-launch, additional mitigations available without contract changes:
+
+- **OrderHash blocklist.** A static array of order hashes in the frontend to suppress specific memos from rendering. Trivial to add.
+- **Client-side content filter.** Regex blocklist for slurs or known spam patterns.
+- **CSS `unicode-bidi: plaintext` + `direction: ltr`** on memo elements to neutralize RTL override and homograph attacks.
+- **Nuclear option.** Stop rendering memos entirely in the frontend — the contract doesn't change, we just hide the field.
+
 ---
 
 ## 6. NFT Metadata Resolution
@@ -305,7 +337,7 @@ Unchanged from original spec. See section 5 of the original SPEC.md.
 2. Navigates to Create page
 3. Adds assets they want to send (contract address + token ID, or ERC-20 amount)
 4. Adds assets they want to receive
-5. Optionally sets taker address and expiration
+5. Optionally sets taker address, expiration, and memo
 6. Clicks "Create Swap"
 7. UI checks and requests approvals for maker's assets to Seaport (gas, per collection)
 8. UI constructs Seaport order and prompts EIP-712 signature (**no gas**)
@@ -359,6 +391,12 @@ Unchanged from original spec. See section 5 of the original SPEC.md.
 ### V2 - Solana Support
 - Separate program, shared UI
 - Not related to Seaport
+
+### Client-Side Event Cache
+- Cache `OrderRegistered` events in IndexedDB, keyed by zone contract address. Store a block-number watermark; on return visits, only query from the watermark forward.
+- Reduces RPC/Alchemy calls from O(full history) to O(blocks since last visit) for repeat visitors. First-time visitors still pay the full scan.
+- Best implemented once the contract address is stable (no more redeployments) and the offers page has been migrated to Alchemy or another indexed RPC. Stale zone addresses are naturally orphaned when the address changes.
+- Does not help first-time or incognito visitors. Not a substitute for proper indexing at scale, but buys significant headroom on API rate limits.
 
 ### Gas Optimization — Compact orderURI Encoding
 - Replace JSON + base64 `orderURI` with a compact binary encoding, stripping field names and omitting derivable fields (zone, orderType, conduitKey). Could reduce orderURI calldata by ~60-70%.

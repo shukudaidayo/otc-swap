@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {OTCZone} from "../src/OTCZone.sol";
+import {OTCZone, OrderRegistration} from "../src/OTCZone.sol";
 import {ZoneParameters, SpentItem, ReceivedItem, Schema} from "seaport-types/lib/ConsiderationStructs.sol";
 import {ItemType} from "seaport-types/lib/ConsiderationEnums.sol";
 import {ZoneInterface} from "seaport-types/interfaces/ZoneInterface.sol";
@@ -64,6 +64,33 @@ contract OTCZoneTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
+    function _nftOffer() internal pure returns (SpentItem[] memory) {
+        SpentItem[] memory offer = new SpentItem[](1);
+        offer[0] = SpentItem(ItemType.ERC721, address(0xAAA), 1, 1);
+        return offer;
+    }
+
+    function _nftConsideration() internal view returns (ReceivedItem[] memory) {
+        ReceivedItem[] memory consideration = new ReceivedItem[](1);
+        consideration[0] = ReceivedItem(ItemType.ERC721, address(0xBBB), 2, 1, payable(maker));
+        return consideration;
+    }
+
+    function _reg(bytes32 orderHash, bytes memory sig, string memory orderURI, string memory memo)
+        internal view returns (OrderRegistration memory)
+    {
+        return OrderRegistration({
+            orderHash: orderHash,
+            maker: maker,
+            taker: taker,
+            offer: _nftOffer(),
+            consideration: _nftConsideration(),
+            signature: sig,
+            orderURI: orderURI,
+            memo: memo
+        });
+    }
+
     function _zoneParams(bytes32 zoneHash) internal view returns (ZoneParameters memory) {
         SpentItem[] memory offer = new SpentItem[](1);
         offer[0] = SpentItem(ItemType.ERC721, address(0xAAA), 1, 1);
@@ -118,15 +145,9 @@ contract OTCZoneTest is Test {
         bytes32 orderHash = bytes32(uint256(1));
         bytes memory sig = _sign(makerPk, orderHash);
 
-        SpentItem[] memory offer = new SpentItem[](1);
-        offer[0] = SpentItem(ItemType.ERC721, address(0xAAA), 1, 1);
-
-        ReceivedItem[] memory consideration = new ReceivedItem[](1);
-        consideration[0] = ReceivedItem(ItemType.ERC721, address(0xBBB), 2, 1, payable(maker));
-
         vm.expectEmit(true, true, true, true);
-        emit OTCZone.OrderRegistered(orderHash, maker, taker, "ipfs://order");
-        zone.registerOrder(orderHash, maker, taker, offer, consideration, sig, "ipfs://order");
+        emit OTCZone.OrderRegistered(orderHash, maker, taker, "ipfs://order", "");
+        zone.registerOrder(_reg(orderHash, sig, "ipfs://order", ""));
     }
 
     function test_registerOrder_withWhitelistedERC20() public {
@@ -139,7 +160,16 @@ contract OTCZoneTest is Test {
         ReceivedItem[] memory consideration = new ReceivedItem[](1);
         consideration[0] = ReceivedItem(ItemType.ERC721, address(0xBBB), 2, 1, payable(maker));
 
-        zone.registerOrder(orderHash, maker, taker, offer, consideration, sig, "data");
+        zone.registerOrder(OrderRegistration({
+            orderHash: orderHash,
+            maker: maker,
+            taker: taker,
+            offer: offer,
+            consideration: consideration,
+            signature: sig,
+            orderURI: "data",
+            memo: ""
+        }));
     }
 
     function test_registerOrder_revertsNonWhitelistedERC20_offer() public {
@@ -153,7 +183,16 @@ contract OTCZoneTest is Test {
         consideration[0] = ReceivedItem(ItemType.ERC721, address(0xBBB), 2, 1, payable(maker));
 
         vm.expectRevert(abi.encodeWithSelector(OTCZone.TokenNotWhitelisted.selector, fakeToken));
-        zone.registerOrder(orderHash, maker, taker, offer, consideration, sig, "data");
+        zone.registerOrder(OrderRegistration({
+            orderHash: orderHash,
+            maker: maker,
+            taker: taker,
+            offer: offer,
+            consideration: consideration,
+            signature: sig,
+            orderURI: "data",
+            memo: ""
+        }));
     }
 
     function test_registerOrder_revertsNonWhitelistedERC20_consideration() public {
@@ -167,7 +206,16 @@ contract OTCZoneTest is Test {
         consideration[0] = ReceivedItem(ItemType.ERC20, fakeToken, 0, 1000, payable(maker));
 
         vm.expectRevert(abi.encodeWithSelector(OTCZone.TokenNotWhitelisted.selector, fakeToken));
-        zone.registerOrder(orderHash, maker, taker, offer, consideration, sig, "data");
+        zone.registerOrder(OrderRegistration({
+            orderHash: orderHash,
+            maker: maker,
+            taker: taker,
+            offer: offer,
+            consideration: consideration,
+            signature: sig,
+            orderURI: "data",
+            memo: ""
+        }));
     }
 
     function test_registerOrder_mixedAssets() public {
@@ -182,24 +230,27 @@ contract OTCZoneTest is Test {
         consideration[0] = ReceivedItem(ItemType.ERC1155, address(0xBBB), 5, 10, payable(maker));
         consideration[1] = ReceivedItem(ItemType.ERC20, usdc, 0, 2000e6, payable(maker));
 
-        zone.registerOrder(orderHash, maker, taker, offer, consideration, sig, "data");
+        zone.registerOrder(OrderRegistration({
+            orderHash: orderHash,
+            maker: maker,
+            taker: taker,
+            offer: offer,
+            consideration: consideration,
+            signature: sig,
+            orderURI: "data",
+            memo: ""
+        }));
     }
 
     function test_registerOrder_anyoneCanSubmitTx() public {
         bytes32 orderHash = bytes32(uint256(6));
         bytes memory sig = _sign(makerPk, orderHash);
 
-        SpentItem[] memory offer = new SpentItem[](1);
-        offer[0] = SpentItem(ItemType.ERC721, address(0xAAA), 1, 1);
-
-        ReceivedItem[] memory consideration = new ReceivedItem[](1);
-        consideration[0] = ReceivedItem(ItemType.ERC721, address(0xBBB), 2, 1, payable(maker));
-
         // Stranger submits the tx, but maker is still the verified signer
         vm.prank(stranger);
         vm.expectEmit(true, true, true, true);
-        emit OTCZone.OrderRegistered(orderHash, maker, taker, "data");
-        zone.registerOrder(orderHash, maker, taker, offer, consideration, sig, "data");
+        emit OTCZone.OrderRegistered(orderHash, maker, taker, "data", "");
+        zone.registerOrder(_reg(orderHash, sig, "data", ""));
     }
 
     function test_registerOrder_revertsInvalidSignature() public {
@@ -208,28 +259,16 @@ contract OTCZoneTest is Test {
         uint256 strangerPk = 0xB0B;
         bytes memory sig = _sign(strangerPk, orderHash);
 
-        SpentItem[] memory offer = new SpentItem[](1);
-        offer[0] = SpentItem(ItemType.ERC721, address(0xAAA), 1, 1);
-
-        ReceivedItem[] memory consideration = new ReceivedItem[](1);
-        consideration[0] = ReceivedItem(ItemType.ERC721, address(0xBBB), 2, 1, payable(maker));
-
         vm.expectRevert(OTCZone.InvalidSignature.selector);
-        zone.registerOrder(orderHash, maker, taker, offer, consideration, sig, "data");
+        zone.registerOrder(_reg(orderHash, sig, "data", ""));
     }
 
     function test_registerOrder_revertsBadSignatureLength() public {
         bytes32 orderHash = bytes32(uint256(8));
         bytes memory badSig = new bytes(63); // wrong length
 
-        SpentItem[] memory offer = new SpentItem[](1);
-        offer[0] = SpentItem(ItemType.ERC721, address(0xAAA), 1, 1);
-
-        ReceivedItem[] memory consideration = new ReceivedItem[](1);
-        consideration[0] = ReceivedItem(ItemType.ERC721, address(0xBBB), 2, 1, payable(maker));
-
         vm.expectRevert(OTCZone.InvalidSignature.selector);
-        zone.registerOrder(orderHash, maker, taker, offer, consideration, badSig, "data");
+        zone.registerOrder(_reg(orderHash, badSig, "data", ""));
     }
 
     function test_registerOrder_compactSignature() public {
@@ -245,13 +284,7 @@ contract OTCZoneTest is Test {
         bytes memory compactSig = abi.encodePacked(r, yParityAndS);
         assertEq(compactSig.length, 64);
 
-        SpentItem[] memory offer = new SpentItem[](1);
-        offer[0] = SpentItem(ItemType.ERC721, address(0xAAA), 1, 1);
-
-        ReceivedItem[] memory consideration = new ReceivedItem[](1);
-        consideration[0] = ReceivedItem(ItemType.ERC721, address(0xBBB), 2, 1, payable(maker));
-
-        zone.registerOrder(orderHash, maker, taker, offer, consideration, compactSig, "data");
+        zone.registerOrder(_reg(orderHash, compactSig, "data", ""));
     }
 
     function test_registerOrder_contractWallet() public {
@@ -263,14 +296,54 @@ contract OTCZoneTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(makerPk, digest);
         bytes memory sig = abi.encode(v, r, s);
 
-        SpentItem[] memory offer = new SpentItem[](1);
-        offer[0] = SpentItem(ItemType.ERC721, address(0xAAA), 1, 1);
-
         ReceivedItem[] memory consideration = new ReceivedItem[](1);
         consideration[0] = ReceivedItem(ItemType.ERC721, address(0xBBB), 2, 1, payable(address(wallet)));
 
         // Register with the contract wallet as maker
-        zone.registerOrder(orderHash, address(wallet), taker, offer, consideration, sig, "data");
+        zone.registerOrder(OrderRegistration({
+            orderHash: orderHash,
+            maker: address(wallet),
+            taker: taker,
+            offer: _nftOffer(),
+            consideration: consideration,
+            signature: sig,
+            orderURI: "data",
+            memo: ""
+        }));
+    }
+
+    // ==================== Memo ====================
+
+    function test_registerOrder_withMemo() public {
+        bytes32 orderHash = bytes32(uint256(11));
+        bytes memory sig = _sign(makerPk, orderHash);
+
+        vm.expectEmit(true, true, true, true);
+        emit OTCZone.OrderRegistered(orderHash, maker, taker, "data", "Looking for any Azuki");
+        zone.registerOrder(_reg(orderHash, sig, "data", "Looking for any Azuki"));
+    }
+
+    function test_registerOrder_revertsMemoTooLong() public {
+        bytes32 orderHash = bytes32(uint256(12));
+        bytes memory sig = _sign(makerPk, orderHash);
+
+        // 281 bytes — one over the limit
+        bytes memory longMemo = new bytes(281);
+        for (uint256 i = 0; i < 281; i++) longMemo[i] = "a";
+
+        vm.expectRevert(OTCZone.MemoTooLong.selector);
+        zone.registerOrder(_reg(orderHash, sig, "data", string(longMemo)));
+    }
+
+    function test_registerOrder_maxLengthMemo() public {
+        bytes32 orderHash = bytes32(uint256(13));
+        bytes memory sig = _sign(makerPk, orderHash);
+
+        // Exactly 280 bytes — should succeed
+        bytes memory maxMemo = new bytes(280);
+        for (uint256 i = 0; i < 280; i++) maxMemo[i] = "a";
+
+        zone.registerOrder(_reg(orderHash, sig, "data", string(maxMemo)));
     }
 
     // ==================== authorizeOrder ====================
