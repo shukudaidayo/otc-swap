@@ -2,7 +2,6 @@ export const IPFS_GATEWAY = 'https://ipfs.io/ipfs/'
 
 export const CHAINS = {
   1: { name: 'Ethereum', rpcUrl: 'https://ethereum-rpc.publicnode.com' },
-  11155111: { name: 'Sepolia', rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com' },
 }
 
 // Seaport 1.6 canonical address (same on all chains)
@@ -10,14 +9,12 @@ export const SEAPORT_ADDRESS = '0x0000000000000068F116a894984e2DB1123eB395'
 
 // OTCZone contract addresses per chain
 export const ZONE_ADDRESSES = {
-  1: null,        // mainnet — not deployed yet
-  11155111: '0x37A73C3fb772FdE4FCd042cFe3cC6dc968eaDa6f',
+  1: '0x07C0000003f04E1b0b040A5B6c8AAB792d9546fc',
 }
 
 // Block number at or before OTCZone deployment — used as fromBlock for event queries
 export const ZONE_DEPLOY_BLOCKS = {
-  1: 0,
-  11155111: 10471152,
+  1: 24694574,
 }
 
 // Whitelisted ERC-20 tokens per chain
@@ -28,10 +25,6 @@ export const WHITELISTED_ERC20 = {
     '0xdAC17F958D2ee523a2206206994597C13D831ec7': { symbol: 'USDT', decimals: 6 },
     '0xdC035D45d973E3EC169d2276DDab16f1e407384F': { symbol: 'USDS', decimals: 18 },
     '0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c': { symbol: 'EURC', decimals: 6 },
-  },
-  11155111: {
-    '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14': { symbol: 'WETH', decimals: 18 },
-    '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238': { symbol: 'USDC', decimals: 6 },
   },
 }
 
