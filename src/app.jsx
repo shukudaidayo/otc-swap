@@ -12,7 +12,7 @@ export default function App() {
     <div className="app">
       <header>
         <nav>
-          <Link to="/" className="logo">OTC Swap</Link>
+          <Link to="/" className="logo">ocarina.trade</Link>
           <div className="nav-links">
             <Link to="/create">Create</Link>
             <Link to="/offers">Offers</Link>
@@ -24,7 +24,7 @@ export default function App() {
         <Outlet context={wallet} />
       </main>
       <footer>
-        <p>OTC Swap — peer-to-peer NFT swaps, fully on-chain</p>
+        <p>ocarina.trade — peer-to-peer NFT swaps, fully on-chain</p>
       </footer>
     </div>
   )

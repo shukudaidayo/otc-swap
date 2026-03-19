@@ -1,12 +1,12 @@
-# OTC Swap - Technical Specification (Seaport Edition)
+# ocarina.trade - Technical Specification (Seaport Edition)
 
 ## 1. Overview
 
-A peer-to-peer OTC swap website for trading NFTs (and whitelisted ERC-20s) directly between two parties. Uses OpenSea's **Seaport protocol** as the on-chain settlement layer, with a minimal custom **OTCZone** contract for taker restriction, ERC-20 whitelisting, and order discovery. No backend, no database, no accounts.
+A peer-to-peer swap website for trading NFTs (and whitelisted ERC-20s) directly between two parties. Uses OpenSea's **Seaport protocol** as the on-chain settlement layer, with a minimal custom **OTCZone** contract for taker restriction, ERC-20 whitelisting, and order discovery. No backend, no database, no accounts.
 
 ### Motivation
 
-Both otc.sudoswap.xyz and opensea.io/deals are dead. The ecosystem needs a simple, durable OTC swap tool. This project prioritizes **longevity** and **minimal maintenance** over feature richness.
+Both otc.sudoswap.xyz and opensea.io/deals are dead. The ecosystem needs a simple, durable swap tool. This project prioritizes **longevity** and **minimal maintenance** over feature richness.
 
 ### Why Seaport
 

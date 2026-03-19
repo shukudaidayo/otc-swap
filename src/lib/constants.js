@@ -11,13 +11,13 @@ export const SEAPORT_ADDRESS = '0x0000000000000068F116a894984e2DB1123eB395'
 // OTCZone contract addresses per chain
 export const ZONE_ADDRESSES = {
   1: null,        // mainnet — not deployed yet
-  11155111: '0x5cc927a439Ea3C5BC55e7F8d41D1fFc524238325',
+  11155111: '0x37A73C3fb772FdE4FCd042cFe3cC6dc968eaDa6f',
 }
 
 // Block number at or before OTCZone deployment — used as fromBlock for event queries
 export const ZONE_DEPLOY_BLOCKS = {
   1: 0,
-  11155111: 10467307,
+  11155111: 10471152,
 }
 
 // Whitelisted ERC-20 tokens per chain

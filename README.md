@@ -1,4 +1,4 @@
-# OTC Swap
+# ocarina.trade
 
 Peer-to-peer OTC swaps for NFTs and tokens. No backend, no accounts, no middleman.
 

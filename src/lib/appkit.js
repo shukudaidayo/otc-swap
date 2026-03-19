@@ -5,7 +5,7 @@ import { mainnet, sepolia } from '@reown/appkit/networks'
 const projectId = import.meta.env.VITE_REOWN_PROJECT_ID
 
 const metadata = {
-  name: 'OTC Swap',
+  name: 'ocarina.trade',
   description: 'Peer-to-peer NFT swaps, fully on-chain',
   url: window.location.origin,
   icons: [],
