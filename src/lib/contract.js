@@ -400,6 +400,43 @@ async function queryViaRpc(chainId, zoneAddress, chain) {
   return registrations
 }
 
+// keccak256('OrderFulfilled(bytes32,address,address,address,(uint8,address,uint256,uint256)[],(uint8,address,uint256,uint256,address)[])')
+// orderHash is NOT indexed — it's the first word of event data.
+// Indexed topics: offerer (topic1), zone (topic2).
+const ORDER_FULFILLED_TOPIC = '0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31'
+
+/**
+ * Find the transaction hash that fulfilled a Seaport order.
+ * Queries Blockscout for OrderFulfilled events filtered by offerer + zone,
+ * then matches orderHash from the event data.
+ */
+export async function getFillTxHash(chainId, orderHash, offerer) {
+  const chain = CHAINS[chainId]
+  if (!chain?.blockscoutApi) return null
+  const zoneAddress = ZONE_ADDRESSES[chainId]
+  if (!zoneAddress) return null
+
+  try {
+    const paddedOfferer = zeroPadValue(offerer, 32)
+    const paddedZone = zeroPadValue(zoneAddress, 32)
+    const url = `${chain.blockscoutApi}?module=logs&action=getLogs&address=${SEAPORT_ADDRESS}&topic0=${ORDER_FULFILLED_TOPIC}&topic1=${paddedOfferer}&topic2=${paddedZone}&topic0_1_opr=and&topic1_2_opr=and&topic0_2_opr=and&fromBlock=0&toBlock=latest`
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data.status !== '1' || !Array.isArray(data.result)) return null
+
+    // orderHash is the first 32 bytes of event data
+    const target = orderHash.toLowerCase()
+    for (const log of data.result) {
+      const dataHash = '0x' + log.data.slice(2, 66)
+      if (dataHash === target) return log.transactionHash
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Derive the status label for an order.
  */

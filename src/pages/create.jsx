@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useOutletContext, useLocation } from 'react-router'
 import { CreateFlowProvider, useCreateFlow, STEPS } from '../components/create-flow/context'
 import WizardShell from '../components/create-flow/wizard-shell'
@@ -33,9 +33,14 @@ function CreateWizardWrapper({ wallet }) {
 }
 
 function CreateWizard({ wallet, onCompleted }) {
-  const { step } = useCreateFlow()
+  const { step, goTo } = useCreateFlow()
   const [completedChainId, setCompletedChainId] = useState(null)
   const [completedTxHash, setCompletedTxHash] = useState(null)
+
+  // If wallet disconnects mid-flow, go back to Connect step
+  useEffect(() => {
+    if (!wallet && step > 0 && !completedTxHash) goTo(0)
+  }, [wallet, step, completedTxHash, goTo])
 
   const handleComplete = (chainId, txHash) => {
     setCompletedChainId(chainId)
@@ -49,6 +54,9 @@ function CreateWizard({ wallet, onCompleted }) {
   }
 
   const stepKey = STEPS[step]?.key
+
+  // While useEffect redirects to Connect, guard against render with null wallet
+  if (!wallet && stepKey !== 'connect') return null
 
   switch (stepKey) {
     case 'connect':

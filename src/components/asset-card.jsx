@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { fetchMetadata } from '../lib/metadata'
 import { getVerificationStatus, getEtherscanUrl } from '../lib/verification'
 import { WHITELISTED_ERC20, CHAINS } from '../lib/constants'
-const BADGE = { verified: '\u2705', unverified: '\u26A0\uFE0F', suspicious: '\uD83D\uDED1' }
 
 const TOKEN_LOGOS = {
   ETH: new URL('../assets/tokens/eth.png', import.meta.url).href,
@@ -23,7 +22,7 @@ function resolveItemType(asset) {
   return 2
 }
 
-export default function AssetCard({ asset, chainId }) {
+export default function AssetCard({ asset, chainId, compact = true }) {
   const [metadata, setMetadata] = useState(null)
   const [loading, setLoading] = useState(true)
   const [verification, setVerification] = useState(null)
@@ -88,9 +87,12 @@ export default function AssetCard({ asset, chainId }) {
   // Native currency — simple display, no verification needed
   const nativeSym = CHAINS[chainId]?.nativeSymbol || 'ETH'
   const nativeLogo = TOKEN_LOGOS[nativeSym]
+  const CHAIN_SLUGS = { 1: 'ethereum', 8453: 'base', 137: 'polygon' }
+  const chainSlug = CHAIN_SLUGS[chainId] || 'ethereum'
   if (isNative) {
+    const nativeUniswapUrl = `https://app.uniswap.org/swap?chain=${chainSlug}&outputCurrency=NATIVE`
     return (
-      <div className="asset-card asset-card-verified">
+      <div className={`asset-card asset-card-verified${!compact ? ' asset-card-large asset-card-cash' : ''}`}>
         <div className="asset-card-image">
           {nativeLogo ? (
             <img src={nativeLogo} alt={nativeSym} />
@@ -100,9 +102,13 @@ export default function AssetCard({ asset, chainId }) {
         </div>
         <div className="asset-card-info">
           <span className="asset-card-name">{asset.amount || '0'} {nativeSym}</span>
-          <div className="asset-card-meta">
-            <span className="asset-type">Native {nativeSym}</span>
-          </div>
+          {!compact && (
+            <div className="asset-card-links">
+              <a href={nativeUniswapUrl} target="_blank" rel="noopener noreferrer" className="btn-link btn-sm">
+                Buy on Uniswap
+              </a>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -116,8 +122,14 @@ export default function AssetCard({ asset, chainId }) {
     ? `${asset.amount || '0'} ${erc20Info?.symbol || 'tokens'}`
     : metadata?.name || `#${asset.tokenId}`
 
+  const openseaUrl = isNFT ? `https://opensea.io/assets/${
+    { 1: 'ethereum', 8453: 'base', 137: 'matic' }[chainId] || 'ethereum'
+  }/${asset.token}/${asset.tokenId}` : null
+
+  const uniswapUrl = isERC20 ? `https://app.uniswap.org/swap?chain=${chainSlug}&outputCurrency=${asset.token}` : null
+
   return (
-    <div className={`asset-card asset-card-${vStatus.status}`}>
+    <div className={`asset-card asset-card-${vStatus.status}${!compact ? ' asset-card-large' : ''}${!compact && isERC20 ? ' asset-card-cash' : ''}`}>
       <div className="asset-card-image">
         {isERC20 ? (
           erc20Info && TOKEN_LOGOS[erc20Info.symbol]
@@ -130,34 +142,44 @@ export default function AssetCard({ asset, chainId }) {
         ) : (
           <div className="asset-card-placeholder">?</div>
         )}
+        {isNFT && vStatus.status === 'verified' && (
+          <span className="asset-card-verified-badge" title="Verified">&#10003;</span>
+        )}
       </div>
       <div className="asset-card-info">
         <span className="asset-card-name">
-          <span className="verification-badge" title={vStatus.status}>
-            {BADGE[vStatus.status]}
-          </span>
           {displayName}
+          {isERC1155 && <span className="asset-detail"> &times;{asset.amount}</span>}
         </span>
-        <a
-          className="asset-card-address"
-          href={etherscanUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="View on Etherscan"
-        >
-          {asset.token}
-        </a>
-        <div className="asset-card-meta">
-          <span className="asset-type">{{ 0: nativeSym, 1: 'ERC-20', 2: 'ERC-721', 3: 'ERC-1155' }[itemType] || 'Unknown'}</span>
-          {isERC1155 && (
-            <span className="asset-detail">&times;{asset.amount}</span>
-          )}
-          {isNFT && <span className="asset-card-tokenid">#{asset.tokenId}</span>}
-        </div>
-        {vStatus.status !== 'verified' && vStatus.message && (
-          <p className={`verification-msg verification-${vStatus.status}`}>
-            {vStatus.message}
-          </p>
+        {compact ? (
+          <>
+            <a
+              className="asset-card-address"
+              href={etherscanUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View on Etherscan"
+            >
+              {asset.token}
+            </a>
+            <div className="asset-card-meta">
+              <span className="asset-type">{{ 0: nativeSym, 1: 'ERC-20', 2: 'ERC-721', 3: 'ERC-1155' }[itemType] || 'Unknown'}</span>
+              {isNFT && <span className="asset-card-tokenid">#{asset.tokenId}</span>}
+            </div>
+          </>
+        ) : (
+          <div className="asset-card-links">
+            {openseaUrl && (
+              <a href={openseaUrl} target="_blank" rel="noopener noreferrer" className="btn-link btn-sm">
+                View on OpenSea
+              </a>
+            )}
+            {uniswapUrl && (
+              <a href={uniswapUrl} target="_blank" rel="noopener noreferrer" className="btn-link btn-sm">
+                Buy on Uniswap
+              </a>
+            )}
+          </div>
         )}
       </div>
     </div>

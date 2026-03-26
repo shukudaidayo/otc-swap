@@ -21,6 +21,9 @@ mint-1155.html
 CLAUDE.md
 .claudeignore
 
+# Internal specs
+SPEC-CREATE-FLOW.md
+
 # OS
 .DS_Store
 Thumbs.db

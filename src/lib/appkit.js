@@ -21,4 +21,7 @@ createAppKit({
     email: false,
     socials: false,
   },
+  themeVariables: {
+    '--w3m-border-radius-master': '4px',
+  },
 })

@@ -13,7 +13,7 @@ const EXPIRY_PRESETS = [
 ]
 
 export default function StepReview({ wallet }) {
-  const { next, back, chainId, taker, takerENS, makerAssets, takerAssets, expiration, setExpiration, memo, setMemo } = useCreateFlow()
+  const { next, back, chainId, taker, makerAssets, takerAssets, expiration, setExpiration, memo, setMemo } = useCreateFlow()
   const [showExpiry, setShowExpiry] = useState(false)
 
   // Default 30 days
@@ -52,18 +52,17 @@ export default function StepReview({ wallet }) {
           <h3>You're offering</h3>
           <div className="review-assets">
             {makerAssets.map((asset, i) => (
-              <AssetCard key={i} asset={asset} chainId={chainId} />
+              <AssetCard key={i} asset={asset} chainId={chainId} compact={false} />
             ))}
           </div>
         </div>
 
-        <div className="review-arrow">&#8644;</div>
 
         <div className="review-side">
           <h3>You're receiving</h3>
           <div className="review-assets">
             {takerAssets.map((asset, i) => (
-              <AssetCard key={i} asset={asset} chainId={chainId} />
+              <AssetCard key={i} asset={asset} chainId={chainId} compact={false} />
             ))}
           </div>
         </div>
@@ -77,7 +76,7 @@ export default function StepReview({ wallet }) {
         <div className="review-meta-row">
           <span className="meta-label">To:</span>
           {taker ? (
-            <span>{takerENS ? `${takerENS} (${truncAddr(taker)})` : <AddressDisplay address={taker} chainId={chainId} />}</span>
+            <AddressDisplay address={taker} chainId={chainId} />
           ) : (
             <em>Anyone</em>
           )}
@@ -140,9 +139,4 @@ export default function StepReview({ wallet }) {
       </div>
     </div>
   )
-}
-
-function truncAddr(addr) {
-  if (!addr) return '?'
-  return addr.slice(0, 6) + '...' + addr.slice(-4)
 }

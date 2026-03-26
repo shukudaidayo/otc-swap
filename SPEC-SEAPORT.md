@@ -162,9 +162,9 @@ Users approve the Seaport contract directly (or a conduit) to transfer their ass
 - **Wallet connection**: Reown AppKit (WalletConnect + injected providers)
 - **Styling**: Minimal custom CSS. No CSS framework.
 - **NFT data**: Alchemy NFT v3 API — `getContractsForOwner` for collection enumeration in the asset picker, `getNFTsForOwner` for fetching individual NFTs within a specific collection.
-- **NFT metadata**: On-chain tokenURI + IPFS/HTTP/Arweave resolution, with Alchemy `getNFTMetadata` as fallback when on-chain resolution fails
+- **NFT metadata**: Alchemy `getNFTMetadata` (pre-cached thumbnails, fast) with on-chain tokenURI + IPFS/HTTP/Arweave resolution as fallback
 - **ENS**: Forward resolution (name → address) for taker input, reverse resolution (address → name) for display throughout the UI. Uses mainnet provider since ENS lives on L1.
-- **Build**: Vite
+- **Build**: Vite, with code splitting — heavy dependencies (AppKit, ethers, seaport-js) are lazy-loaded. The homepage renders with only React + Router (~75KB entry chunk). Wallet connection (AppKit) loads asynchronously in the background.
 - **Hosting**: Static site (GitHub Pages, Cloudflare Pages, or IPFS)
 
 #### Pages / Routes
@@ -185,20 +185,22 @@ Hash-based routing (works on static hosts, no server config needed).
 3. **`#/trade/{chainId}/{txHash}`** - View and accept a trade
    - Fetch `OrderRegistered` event from the registration tx receipt
    - Extract signed order from `orderURI` field
-   - Display both sides with NFT previews and verification warnings
+   - Display both sides with large NFT images, small logos for cash assets, OpenSea/Uniswap links
+   - Layout: "From [address/ENS]" headers for each side ("From Anyone" for open taker)
    - Display memo (if present) in the trade metadata section
+   - Expiration shown only for open trades; hidden for filled/cancelled/expired
+   - For filled trades, show a "Fill tx" link to the block explorer transaction that settled the trade (found by querying Seaport `OrderFulfilled` events via Blockscout)
    - Validate order on-chain via Seaport `getOrderStatus` (check if filled/cancelled)
-   - If valid and user is eligible: approval flow + "Accept Trade" button
+   - If valid and user is eligible: "Accept Trade" button triggers a verification modal listing any unverified NFTs before proceeding. If all assets are verified, proceeds directly.
    - If user is maker: "Cancel" button
-   - Anti-scam education banner (non-dismissable)
 
 4. **`#/offers`** - Browse offers
-   - Chain selector (Ethereum / Base / Polygon) — auto-follows connected wallet's chain
-   - "My Offers" tab (default): orders involving connected wallet
-   - "All Open" tab: paginated, all open orders
-   - "Completed" tab: filled orders
+   - Chain selector (Ethereum / Base / Polygon / All Chains)
+   - Category dropdown: "My Offers", "All Open", "All Offers"
+   - Auto-promotion on load: starts on "All Offers", promotes to "All Open" if any open offers exist, promotes to "My Offers" if the connected wallet has matching orders. Promotion only happens on initial load — manual category changes are preserved.
+   - Offer cards show "From [address/ENS]" on each side, asset thumbnails and names (NFT images fetched via Alchemy), token logos for cash, chain name and status badge
    - Populated by querying `OrderRegistered` events from OTCZone, cross-referenced with Seaport for order status (filled/cancelled)
-   - Memos are not displayed on offer cards (removed — broke card layout). Memos are visible on the trade detail page only.
+   - Memos are not displayed on offer cards. Memos are visible on the trade detail page only.
 
 #### URL Encoding
 
@@ -218,7 +220,7 @@ The OTCZone contract emits `OrderRegistered` events when makers publish their or
 
 - **My Offers**: Filter `OrderRegistered` events where `maker` or `taker` matches the connected wallet.
 - **All Open**: All `OrderRegistered` events, filtered client-side to exclude filled/cancelled/expired orders. Paginated.
-- **Completed**: Cross-referenced with Seaport `getOrderStatus` (checks `totalFilled === totalSize`).
+- **All Offers**: All `OrderRegistered` events regardless of status.
 
 Each `OrderRegistered` event contains the `orderURI`, which has everything needed to reconstruct the trade page link.
 
@@ -288,7 +290,7 @@ Key points:
 - Verified / Unverified / Suspicious indicators per token
 - Impostor detection (same name, different address)
 - Full contract addresses always visible, linked to Etherscan
-- Non-dismissable education banner on trade page
+- Verification modal on trade acceptance: when a user clicks "Accept Trade", all NFTs are checked for verification status. If any are unverified, a modal lists them with Etherscan links and requires explicit confirmation ("Accept Anyway") before proceeding. Verified-only trades proceed directly.
 - ERC-20 whitelist enforced at three layers (frontend, registration, fulfillment) — prevents impostor token scams
 
 ### Spam NFT Detection
@@ -333,8 +335,8 @@ If abuse occurs post-launch, additional mitigations available without contract c
 Three-tier resolution strategy:
 
 1. **Alchemy cache**: During the create flow, the asset picker fetches NFT images/names from the Alchemy v3 API. These are attached to the asset object (`_image`, `_name`) and carried through to the review/execute screens without re-fetching.
-2. **On-chain tokenURI**: For contexts without Alchemy data (trade page, offers page), fetch `tokenURI` (ERC-721) or `uri` (ERC-1155) from the contract, then resolve IPFS/HTTP/data URI/Arweave (`ar://`) to fetch JSON metadata.
-3. **Alchemy getNFTMetadata fallback**: If on-chain resolution fails or returns no image, fall back to Alchemy's `getNFTMetadata` v3 endpoint for cached metadata.
+2. **Alchemy getNFTMetadata**: For contexts without cached data (trade page, offers page), try Alchemy's `getNFTMetadata` v3 endpoint first. Returns pre-cached Cloudinary thumbnails that load quickly and avoid IPFS latency.
+3. **On-chain tokenURI fallback**: If Alchemy is unavailable or returns no image, fetch `tokenURI` (ERC-721) or `uri` (ERC-1155) from the contract, then resolve IPFS/HTTP/data URI/Arweave (`ar://`) to fetch JSON metadata.
 
 All results cached in `sessionStorage` to avoid redundant fetches.
 
@@ -366,10 +368,11 @@ All results cached in `sessionStorage` to avoid redundant fetches.
 5. UI checks on-chain holdings for both maker (offer) and taker (consideration), flagging any missing assets
 6. Counterparty reviews the trade
 7. Connects wallet
-8. UI shows a step-by-step checklist: one step per token approval, plus the final fulfillment action. Each step shows status (pending → signing → confirming → done/failed).
-9. Clicks "Accept Trade"
-10. UI walks through approval steps, then calls `fulfillOrder` — one transaction, atomic trade
-11. Assets are exchanged
+8. Clicks "Accept Trade"
+9. UI checks all NFTs for verification status. If any are unverified, a modal warns the user and lists unverified assets with Etherscan links. User must confirm or cancel.
+10. UI shows a step-by-step checklist: one step per token approval, plus the final fulfillment action. Each step shows status (pending → signing → confirming → done/failed).
+11. UI walks through approval steps, then calls `fulfillOrder` — one transaction, atomic trade
+12. Assets are exchanged
 
 ### Cancelling a Trade
 
@@ -428,6 +431,23 @@ All contracts deployed via CREATE2 (Nick's Factory at `0x4e59b44847b379578588920
 - Main work: detect mini-app context and replace the wallet provider (Farcaster SDK or Coinbase Wallet SDK instead of Reown AppKit). Everything downstream (ethers.js, Seaport calls) stays the same.
 - Requires a separate OTCZone deployment per chain (already done for Base and Polygon).
 
+### Address Identity Enhancements
+
+#### Ocarina Identicons
+- Custom address avatar library: deterministic, parameterized SVG ocarinas generated from the 20 address bytes.
+- Visual parameters mapped from byte ranges: shape (sweet potato, pendant, inline, vessel), body color/glaze, size/proportions, hole count and pattern, mouthpiece style, decoration (stripes, dots, cracks, gloss), orientation, background color.
+- Billions of unique combinations from 20 bytes of entropy. Same address always renders the same ocarina.
+- Zero dependencies — inline SVG, tiny bundle size.
+- Displayed next to addresses/ENS names throughout the site to help users visually verify addresses and catch impersonation or wrong-address errors.
+- For ENS names with an avatar record set, fetch and display the real avatar instead.
+
+#### EFP (Ethereum Follow Protocol) Integration
+- [EFP](https://efp.app/) is an onchain social graph protocol. Each address can have followers, following, and block/mute lists stored onchain.
+- Display follower count or "on EFP" indicator next to addresses on the trade page as a trust signal — an address with an established social graph is more likely to be a real, active person.
+- Block/mute data could serve as a scam signal: warn if a counterparty has been widely blocked.
+- Public API available at ethidentitykit.com — no API key required.
+- Complements ocarina identicons: identicons help verify the *right* address, EFP helps assess *trust* in an address.
+
 ### Not Planned
 - Order book / listing marketplace
 - Chat / messaging
@@ -453,9 +473,9 @@ All environment-specific values in `src/lib/constants.js`:
 - RPC endpoint URLs per chain
 - IPFS gateway URL
 
-Alchemy-specific config lives in `src/lib/alchemy.js`:
+Alchemy-specific config lives in `src/lib/metadata.js` and `src/components/create-flow/asset-picker.jsx`:
 - Alchemy API key (via `VITE_ALCHEMY_API_KEY` env var)
-- Alchemy network identifiers per chain (`CHAIN_NETWORKS`)
+- Alchemy network identifiers per chain (`ALCHEMY_NETWORKS`)
 
 ### External Services
 - **Reown AppKit**: Wallet connection (requires project ID via `VITE_REOWN_PROJECT_ID`)

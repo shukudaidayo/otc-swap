@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import { queryOrderEvents, getOrderStatus, deriveOrderStatus } from '../lib/contract'
 import { checkHoldings } from '../lib/balances'
-import { truncateAddress } from '../lib/wallet'
+import { fetchMetadata } from '../lib/metadata'
 import AddressDisplay from '../components/address-display'
 import { ZONE_ADDRESSES, CHAINS, WHITELISTED_ERC20 } from '../lib/constants'
 import { formatUnits } from 'ethers'
@@ -17,75 +17,87 @@ const DEPLOYED_CHAINS = Object.entries(ZONE_ADDRESSES)
 
 export default function Offers() {
   const wallet = useOutletContext()
-  const [chainId, setChainId] = useState(() => {
-    // Default to wallet chain if deployed, otherwise first deployed chain
-    const walletChain = wallet?.chainId
-    if (walletChain && ZONE_ADDRESSES[walletChain]) return walletChain
-    return DEPLOYED_CHAINS[0] || 0
-  })
-  const [tab, setTab] = useState('mine')
+  const [chainFilter, setChainFilter] = useState('all')
+  const [category, setCategory] = useState('all')
+  const [autoPromoted, setAutoPromoted] = useState(false)
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [partial, setPartial] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
-  // Follow wallet chain when it changes
+  // After orders load, auto-promote: My Offers > All Open > All Trades
   useEffect(() => {
-    if (wallet?.chainId && ZONE_ADDRESSES[wallet.chainId]) {
-      setChainId(wallet.chainId)
+    if (autoPromoted || loading || orders.length === 0) return
+    if (wallet) {
+      const userAddr = wallet.address.toLowerCase()
+      const hasMine = orders.some((o) => {
+        const isMaker = o.maker.toLowerCase() === userAddr
+        const isTaker = o.taker !== ZERO_ADDRESS && o.taker.toLowerCase() === userAddr
+        return isMaker || isTaker
+      })
+      if (hasMine) { setCategory('mine'); setAutoPromoted(true); return }
     }
-  }, [wallet?.chainId])
+    const hasOpen = orders.some((o) => o.status === 'open')
+    if (hasOpen) setCategory('open')
+    setAutoPromoted(true)
+  }, [wallet, loading, orders, autoPromoted])
 
   useEffect(() => {
-    if (!chainId || !ZONE_ADDRESSES[chainId]) {
-      setLoading(false)
-      setError('No OTCZone deployed yet.')
-      return
-    }
-
     setOrders([])
     setLoading(true)
     setError(null)
     setPartial(false)
 
+    const chainsToLoad = chainFilter === 'all'
+      ? DEPLOYED_CHAINS
+      : [Number(chainFilter)]
+
     let cancelled = false
     async function load() {
       try {
-        const registrations = await queryOrderEvents(
-          chainId,
-          ZONE_ADDRESSES[chainId],
+        // Load all selected chains in parallel
+        const chainResults = await Promise.all(
+          chainsToLoad.map(async (cid) => {
+            const registrations = await queryOrderEvents(cid, ZONE_ADDRESSES[cid])
+            const isPartial = registrations._partial
+            // Tag each order with its chain
+            const tagged = registrations.map((r) => ({ ...r, chainId: cid }))
+
+            // Fetch Seaport status for each order (batched to avoid RPC rate limits)
+            const BATCH_SIZE = 3
+            const enriched = []
+            for (let i = 0; i < tagged.length; i += BATCH_SIZE) {
+              if (cancelled) return []
+              const batch = tagged.slice(i, i + BATCH_SIZE)
+              const results = await Promise.all(
+                batch.map(async (reg) => {
+                  try {
+                    const seaportStatus = await getOrderStatus(cid, reg.orderHash)
+                    const endTime = reg.order?.parameters?.endTime
+                    const status = deriveOrderStatus(seaportStatus, endTime)
+                    return { ...reg, status }
+                  } catch {
+                    return { ...reg, status: 'unknown' }
+                  }
+                })
+              )
+              enriched.push(...results)
+            }
+
+            if (isPartial) enriched._partial = true
+            return enriched
+          })
         )
 
         if (cancelled) return
 
-        // Fetch Seaport status for each order (batched to avoid RPC rate limits)
-        const BATCH_SIZE = 3
-        const enriched = []
-        for (let i = 0; i < registrations.length; i += BATCH_SIZE) {
-          if (cancelled) return
-          const batch = registrations.slice(i, i + BATCH_SIZE)
-          const results = await Promise.all(
-            batch.map(async (reg) => {
-              try {
-                const seaportStatus = await getOrderStatus(chainId, reg.orderHash)
-                const endTime = reg.order?.parameters?.endTime
-                const status = deriveOrderStatus(seaportStatus, endTime)
-                return { ...reg, status }
-              } catch {
-                return { ...reg, status: 'unknown' }
-              }
-            })
-          )
-          enriched.push(...results)
-        }
-
-        if (cancelled) return
-
-        // Most recent first
-        enriched.reverse()
-        if (registrations._partial) setPartial(true)
-        setOrders(enriched)
+        // Merge results from all chains, most recent first
+        const allOrders = chainResults.flat()
+        allOrders.reverse()
+        const anyPartial = chainResults.some((r) => r._partial)
+        if (anyPartial) setPartial(true)
+        setOrders(allOrders)
       } catch (err) {
         console.error('Failed to load offers:', err)
         if (!cancelled) setError('Failed to load offers. RPC may be rate-limited.')
@@ -95,7 +107,7 @@ export default function Offers() {
     }
     load()
     return () => { cancelled = true }
-  }, [chainId])
+  }, [chainFilter])
 
   // Check maker holdings for open offers
   useEffect(() => {
@@ -112,7 +124,7 @@ export default function Offers() {
         const batch = openOrders.slice(i, i + BATCH)
         const results = await Promise.all(
           batch.map(async (o) => {
-            const results = await checkHoldings(chainId, o.maker, o.order.parameters.offer)
+            const results = await checkHoldings(o.chainId, o.maker, o.order.parameters.offer)
             return { orderHash: o.orderHash, makerHoldsAll: results.every((h) => h.held) }
           })
         )
@@ -131,29 +143,29 @@ export default function Offers() {
     })
 
     return () => { cancelled = true }
-  }, [orders.length, chainId]) // re-run when orders finish loading
+  }, [orders.length]) // re-run when orders finish loading
 
-  // Reset pagination when switching tabs
+  // Reset pagination when filters change
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
-  }, [tab])
+  }, [category])
 
   const userAddr = wallet?.address?.toLowerCase()
 
   const filtered = orders.filter((o) => {
-    if (tab === 'mine') {
+    if (category === 'mine') {
       if (!userAddr) return false
       const isMaker = o.maker.toLowerCase() === userAddr
       const isTaker = o.taker !== ZERO_ADDRESS && o.taker.toLowerCase() === userAddr
       return isMaker || isTaker
     }
-    if (tab === 'open') return o.status === 'open'
-    if (tab === 'filled') return o.status === 'filled'
+    if (category === 'open') return o.status === 'open'
+    if (category === 'all') return true
     return false
   })
 
   // Sort open offers: valid first, then invalid (maker doesn't hold assets)
-  if (tab === 'open') {
+  if (category === 'open') {
     filtered.sort((a, b) => {
       const aValid = a.makerHoldsAll !== false ? 1 : 0
       const bValid = b.makerHoldsAll !== false ? 1 : 0
@@ -168,60 +180,45 @@ export default function Offers() {
     <div className="page offers">
       <h1>Offers</h1>
 
-      {DEPLOYED_CHAINS.length > 1 && (
-        <div className="chain-selector">
-          {DEPLOYED_CHAINS.map((id) => (
-            <button
-              key={id}
-              className={`tab ${id === chainId ? 'active' : ''}`}
-              onClick={() => setChainId(id)}
-            >
-              {CHAINS[id]?.name || `Chain ${id}`}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="offers-tabs">
-        <button
-          className={`tab ${tab === 'mine' ? 'active' : ''}`}
-          onClick={() => setTab('mine')}
-        >
-          My Offers
-        </button>
-        <button
-          className={`tab ${tab === 'open' ? 'active' : ''}`}
-          onClick={() => setTab('open')}
-        >
-          All Open
-        </button>
-        <button
-          className={`tab ${tab === 'filled' ? 'active' : ''}`}
-          onClick={() => setTab('filled')}
-        >
-          Completed
-        </button>
+      <div className="offers-filters">
+        <label>
+          Chain
+          <select value={chainFilter} onChange={(e) => setChainFilter(e.target.value)}>
+            <option value="all">All Chains</option>
+            {DEPLOYED_CHAINS.map((id) => (
+              <option key={id} value={id}>{CHAINS[id]?.name || `Chain ${id}`}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Category
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="mine">My Offers</option>
+            <option value="open">All Open</option>
+            <option value="all">All Offers</option>
+          </select>
+        </label>
       </div>
 
       {loading && <p className="text-muted">Loading offers...</p>}
       {error && <p className="form-error">{error}</p>}
       {partial && !loading && <p className="text-muted">Only showing recent offers. Older offers may be missing.</p>}
 
-      {!loading && !error && tab === 'mine' && !wallet && (
+      {!loading && !error && category === 'mine' && !wallet && (
         <p className="text-muted">Connect your wallet to see your offers.</p>
       )}
 
-      {!loading && !error && filtered.length === 0 && (tab !== 'mine' || wallet) && (
+      {!loading && !error && filtered.length === 0 && (category !== 'mine' || wallet) && (
         <p className="text-muted">
-          {tab === 'mine' ? 'No offers involving your wallet.' :
-           tab === 'open' ? 'No open offers.' : 'No completed trades yet.'}
+          {category === 'mine' ? 'No offers involving your wallet.' :
+           category === 'open' ? 'No open offers.' : 'No offers found.'}
         </p>
       )}
 
       {!loading && visible.length > 0 && (
         <div className="offers-list">
           {visible.map((order) => (
-            <OfferCard key={order.orderHash} order={order} chainId={chainId} invalidHoldings={order.makerHoldsAll === false} />
+            <OfferCard key={order.orderHash} order={order} invalidHoldings={order.makerHoldsAll === false} />
           ))}
         </div>
       )}
@@ -239,28 +236,42 @@ export default function Offers() {
   )
 }
 
-function OfferCard({ order, chainId, invalidHoldings }) {
+const TOKEN_LOGOS = {
+  ETH: new URL('../assets/tokens/eth.png', import.meta.url).href,
+  POL: new URL('../assets/tokens/pol.png', import.meta.url).href,
+  WETH: new URL('../assets/tokens/weth.png', import.meta.url).href,
+  USDC: new URL('../assets/tokens/usdc.png', import.meta.url).href,
+  USDT: new URL('../assets/tokens/usdt.png', import.meta.url).href,
+  USDT0: new URL('../assets/tokens/usdt.png', import.meta.url).href,
+  USDS: new URL('../assets/tokens/usds.png', import.meta.url).href,
+  EURC: new URL('../assets/tokens/eurc.png', import.meta.url).href,
+}
+
+function OfferCard({ order, invalidHoldings }) {
+  const { chainId } = order
   const tradeUrl = `/trade/${chainId}/${order.transactionHash}`
   const params = order.order?.parameters
 
   return (
     <Link to={tradeUrl} className={`offer-card${invalidHoldings ? ' offer-card-invalid' : ''}`}>
       <div className="offer-card-side">
-        <span className="offer-label">Maker</span>
-        <AddressDisplay address={order.maker} chainId={chainId} />
+        <div className="offer-card-from">
+          From <AddressDisplay address={order.maker} chainId={chainId} asSpan />
+        </div>
         {params && <AssetSummary items={params.offer} chainId={chainId} />}
       </div>
-      <div className="offer-card-arrow">&#8644;</div>
       <div className="offer-card-side">
-        <span className="offer-label">Taker</span>
-        {order.taker === ZERO_ADDRESS ? (
-          <em>Anyone</em>
-        ) : (
-          <AddressDisplay address={order.taker} chainId={chainId} />
-        )}
+        <div className="offer-card-from">
+          {order.taker === ZERO_ADDRESS ? (
+            <>From Anyone</>
+          ) : (
+            <>From <AddressDisplay address={order.taker} chainId={chainId} asSpan /></>
+          )}
+        </div>
         {params && <AssetSummary items={params.consideration} chainId={chainId} />}
       </div>
       <div className="offer-card-meta">
+        <span className="offer-card-chain">{CHAINS[chainId]?.name}</span>
         <span className={`status-badge status-${order.status}`}>
           {order.status}
         </span>
@@ -278,21 +289,54 @@ function AssetSummary({ items, chainId }) {
       {items.map((item, i) => {
         const it = Number(item.itemType)
         if (it === 0) {
-          return <span key={i} className="offer-asset-tag">{formatUnits(item.startAmount, 18)} {CHAINS[chainId]?.nativeSymbol || 'ETH'}</span>
+          const sym = CHAINS[chainId]?.nativeSymbol || 'ETH'
+          return (
+            <span key={i} className="offer-asset-item">
+              {TOKEN_LOGOS[sym] && <img src={TOKEN_LOGOS[sym]} alt={sym} className="offer-asset-logo" />}
+              <span>{formatUnits(item.startAmount, 18)} {sym}</span>
+            </span>
+          )
         }
         if (it === 1) {
           const info = (WHITELISTED_ERC20[chainId] || {})[item.token]
           const amount = formatUnits(item.startAmount, info?.decimals ?? 18)
-          return <span key={i} className="offer-asset-tag">{amount} {info?.symbol || truncateAddress(item.token)}</span>
+          const sym = info?.symbol || '???'
+          return (
+            <span key={i} className="offer-asset-item">
+              {TOKEN_LOGOS[sym] && <img src={TOKEN_LOGOS[sym]} alt={sym} className="offer-asset-logo" />}
+              <span>{amount} {sym}</span>
+            </span>
+          )
         }
         return (
-          <span key={i} className="offer-asset-tag">
-            {truncateAddress(item.token)}
-            {item.identifierOrCriteria !== '0' && ` #${item.identifierOrCriteria}`}
-            {Number(item.startAmount) > 1 && ` x${item.startAmount}`}
-          </span>
+          <NFTAssetItem key={i} chainId={chainId} token={item.token} tokenId={item.identifierOrCriteria} itemType={it} amount={item.startAmount} />
         )
       })}
     </div>
+  )
+}
+
+function NFTAssetItem({ chainId, token, tokenId, itemType, amount }) {
+  const [meta, setMeta] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchMetadata(chainId, token, tokenId, itemType === 3 ? 1 : 0).then((m) => {
+      if (!cancelled) setMeta(m)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [chainId, token, tokenId, itemType])
+
+  return (
+    <span className="offer-asset-item">
+      <span className="offer-asset-thumb">
+        {meta?.image ? (
+          <img src={meta.image} alt={meta.name || ''} loading="lazy" />
+        ) : (
+          <span className="offer-asset-thumb-placeholder">?</span>
+        )}
+      </span>
+      <span>{meta?.name || `#${tokenId}`}{Number(amount) > 1 && ` x${amount}`}</span>
+    </span>
   )
 }

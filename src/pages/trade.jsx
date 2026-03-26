@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useOutletContext } from 'react-router'
-import { getOrderFromTx, getOrderStatus, fulfillOrder, cancelOrder, ensureApproval, deriveOrderStatus } from '../lib/contract'
+import { getOrderFromTx, getOrderStatus, fulfillOrder, cancelOrder, ensureApproval, deriveOrderStatus, getFillTxHash } from '../lib/contract'
 import { checkHoldings } from '../lib/balances'
+import { getVerificationStatus, getEtherscanUrl } from '../lib/verification'
+import { fetchMetadata } from '../lib/metadata'
 import AssetCard from '../components/asset-card'
 import AddressDisplay from '../components/address-display'
-import WarningBanner from '../components/warning-banner'
 import { truncateAddress } from '../lib/wallet'
 import TxChecklist, { buildSteps } from '../components/tx-checklist'
-import { WHITELISTED_ERC20 } from '../lib/constants'
+import { WHITELISTED_ERC20, CHAINS } from '../lib/constants'
 import { ItemType } from '@opensea/seaport-js/lib/constants'
 import { formatUnits } from 'ethers'
 
@@ -49,6 +50,9 @@ export default function Trade() {
   const [copied, setCopied] = useState(false)
   const [offerHoldings, setOfferHoldings] = useState(null) // array parallel to offer items
   const [considerationHoldings, setConsiderationHoldings] = useState(null) // array parallel to consideration items
+  const [showVerifyModal, setShowVerifyModal] = useState(false)
+  const [unverifiedAssets, setUnverifiedAssets] = useState([])
+  const [fillTxHash, setFillTxHash] = useState(null)
 
   // Fetch order data from tx hash
   useEffect(() => {
@@ -92,6 +96,17 @@ export default function Trade() {
     return () => { cancelled = true }
   }, [orderData, chainId])
 
+  // Fetch fill transaction hash for filled orders
+  useEffect(() => {
+    if (!orderData || statusLabel !== 'filled') return
+    let cancelled = false
+    const offerer = orderData.order.parameters.offerer
+    getFillTxHash(Number(chainId), orderData.orderHash, offerer).then((hash) => {
+      if (!cancelled && hash) setFillTxHash(hash)
+    })
+    return () => { cancelled = true }
+  }, [orderData, statusLabel, chainId])
+
   // Check holdings when order is loaded and open
   useEffect(() => {
     if (!orderData || statusLabel !== 'open') return
@@ -119,6 +134,44 @@ export default function Trade() {
 
     return () => { cancelled = true }
   }, [orderData, statusLabel, chainId, wallet])
+
+  const checkVerificationAndFill = useCallback(async () => {
+    if (!orderData) return
+    const params = orderData.order.parameters
+    const allItems = [...params.offer, ...params.consideration]
+    // Only check NFTs (ERC-721 and ERC-1155), not ERC-20/native
+    const nftItems = allItems.filter((item) => {
+      const it = Number(item.itemType)
+      return it === 2 || it === 3
+    })
+
+    const unverified = []
+    for (const item of nftItems) {
+      const v = await getVerificationStatus(Number(chainId), item.token)
+      if (v.status !== 'verified') {
+        let name = null
+        try {
+          const meta = await fetchMetadata(Number(chainId), item.token, item.identifierOrCriteria, Number(item.itemType) === 3 ? 1 : 0)
+          name = meta?.name
+        } catch { /* ignore */ }
+        unverified.push({
+          token: item.token,
+          tokenId: item.identifierOrCriteria,
+          name: name || `#${item.identifierOrCriteria}`,
+          status: v.status,
+          message: v.message,
+          etherscanUrl: getEtherscanUrl(Number(chainId), item.token),
+        })
+      }
+    }
+
+    if (unverified.length > 0) {
+      setUnverifiedAssets(unverified)
+      setShowVerifyModal(true)
+    } else {
+      handleFill()
+    }
+  }, [orderData, chainId])
 
   const handleFill = useCallback(async () => {
     if (!wallet || !orderData) return
@@ -279,8 +332,6 @@ export default function Trade() {
     <div className="page trade">
       <h1>Trade Details</h1>
 
-      <WarningBanner />
-
       <div className="trade-status-bar">
         {statusLoading ? (
           <span className="status-loading">Loading status...</span>
@@ -296,27 +347,24 @@ export default function Trade() {
 
       <div className="trade-parties">
         <div className="trade-party">
-          <h3>Maker sends</h3>
-          <p className="party-address">
-            <AddressDisplay address={maker} chainId={Number(chainId)} showFull />
+          <h3 className="party-address">
+            From <AddressDisplay address={maker} chainId={Number(chainId)} />
             {isMaker && <span className="you-badge">you</span>}
-          </p>
+          </h3>
           <AssetList assets={offerAssets} chainId={chainId} holdings={offerHoldings} holdingsLabel="Maker" />
         </div>
-        <div className="trade-arrow">&#8644;</div>
         <div className="trade-party">
-          <h3>Taker sends</h3>
-          <p className="party-address">
+          <h3 className="party-address">
             {taker === ZERO_ADDRESS ? (
-              <em>Open to anyone</em>
+              <>From Anyone</>
             ) : (
               <>
-                <AddressDisplay address={taker} chainId={Number(chainId)} showFull />
-                {isTaker && taker !== ZERO_ADDRESS && <span className="you-badge">you</span>}
+                From <AddressDisplay address={taker} chainId={Number(chainId)} />
+                {isTaker && <span className="you-badge">you</span>}
               </>
             )}
-          </p>
-          <AssetList assets={considerationAssets} chainId={chainId} holdings={considerationHoldings} holdingsLabel="You" />
+          </h3>
+          <AssetList assets={considerationAssets} chainId={chainId} holdings={isMaker ? null : considerationHoldings} holdingsLabel="You" />
         </div>
       </div>
 
@@ -326,16 +374,32 @@ export default function Trade() {
             <span className="meta-label">Memo:</span> {orderData.memo}
           </p>
         )}
-        {params.endTime && Number(params.endTime) > 0 && (
-          <p>
-            <span className="meta-label">Expires:</span>{' '}
-            {new Date(Number(params.endTime) * 1000).toLocaleString()}
-            {isExpired && ' (expired)'}
-          </p>
-        )}
-        <p>
-          <span className="meta-label">Chain:</span> {chainId}
-        </p>
+        {fillTxHash && (() => {
+          const explorers = { 1: 'https://etherscan.io', 8453: 'https://basescan.org', 137: 'https://polygonscan.com' }
+          const base = explorers[Number(chainId)] || explorers[1]
+          const url = `${base}/tx/${fillTxHash}`
+          return (
+            <p>
+              <span className="meta-label">Fill tx:</span>{' '}
+              <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+            </p>
+          )
+        })()}
+        {statusLabel === 'open' && params.endTime && Number(params.endTime) > 0 && (() => {
+          const expiryMs = Number(params.endTime) * 1000
+          const expiryDate = new Date(expiryMs)
+          const hoursLeft = (expiryMs - Date.now()) / (1000 * 60 * 60)
+          const soon = hoursLeft > 0 && hoursLeft <= 48
+          const label = soon
+            ? expiryDate.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+            : expiryDate.toLocaleDateString(undefined, { dateStyle: 'medium' })
+          return (
+            <p className={soon ? 'text-danger' : ''}>
+              <span className="meta-label">Expires:</span> {label}
+              {isExpired && ' (expired)'}
+            </p>
+          )
+        })()}
       </div>
 
       {error && <p className="form-error">{error}</p>}
@@ -346,7 +410,7 @@ export default function Trade() {
       )}
 
       {wallet && wrongChain && (
-        <p className="form-error">Switch your wallet to chain {chainId} to interact with this trade.</p>
+        <p className="form-error">Switch your wallet to {CHAINS[Number(chainId)]?.name || `chain ${chainId}`} to interact with this trade.</p>
       )}
 
       {wallet && !wrongChain && isOpen && !isExpired && wrongTaker && !isMaker && (
@@ -365,7 +429,7 @@ export default function Trade() {
             {takerMissing && (
               <p className="form-error">You do not hold all required assets to accept this trade.</p>
             )}
-            <button className="btn btn-primary" onClick={handleFill} disabled={submitting || blocked}>
+            <button className="btn btn-primary" onClick={checkVerificationAndFill} disabled={submitting || blocked}>
               {submitting ? 'Accepting...' : 'Accept Trade'}
             </button>
           </>
@@ -377,6 +441,34 @@ export default function Trade() {
           {submitting ? 'Cancelling...' : 'Cancel Trade'}
         </button>
       )}
+
+      {showVerifyModal && (
+        <div className="modal-overlay" onClick={() => setShowVerifyModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Unverified Assets</h3>
+            <p>The following assets could not be verified. Check the contract addresses to confirm they are the real assets before proceeding.</p>
+            <div className="modal-asset-list">
+              {unverifiedAssets.map((a, i) => (
+                <div key={i} className="modal-asset-row">
+                  <span className="modal-asset-name">{a.name}</span>
+                  <a href={a.etherscanUrl} target="_blank" rel="noopener noreferrer" className="modal-asset-address">
+                    {a.token}
+                  </a>
+                  {a.status === 'suspicious' && a.message && (
+                    <p className="text-danger" style={{ fontSize: '0.8rem', margin: '0.2rem 0 0' }}>{a.message}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setShowVerifyModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => { setShowVerifyModal(false); handleFill() }}>
+                Accept Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -386,7 +478,7 @@ function AssetList({ assets, chainId, holdings, holdingsLabel }) {
     <div className="asset-list">
       {assets.map((asset, i) => (
         <div key={i}>
-          <AssetCard asset={asset} chainId={Number(chainId)} />
+          <AssetCard asset={asset} chainId={Number(chainId)} compact={false} />
           {holdings && !holdings[i]?.held && (
             <p className="asset-missing">{holdingsLabel} {holdingsLabel === 'You' ? 'do' : 'does'} not hold this asset</p>
           )}

@@ -1,14 +1,13 @@
+import { Suspense } from 'react'
 import { Link, Outlet, useLocation } from 'react-router'
-import { useAppKitAccount, useAppKitProvider, useAppKitNetwork } from '@reown/appkit/react'
+import { useWallet, WalletProvider } from './lib/wallet-hooks'
 
-export default function App() {
-  const { address, isConnected } = useAppKitAccount()
-  const { walletProvider } = useAppKitProvider('eip155')
-  const { chainId } = useAppKitNetwork()
+function AppShell() {
+  const wallet = useWallet()
   const location = useLocation()
 
-  const wallet = isConnected ? { address, provider: walletProvider, chainId: Number(chainId) } : null
   const isHome = location.pathname === '/'
+  const isCreate = location.pathname === '/create'
 
   return (
     <div className="app">
@@ -16,18 +15,27 @@ export default function App() {
         <nav>
           <Link to="/" className="logo">ocarina.trade</Link>
           <div className="nav-links">
-            <Link to="/create">Create</Link>
             <Link to="/offers">Offers</Link>
           </div>
-          {!isHome && <appkit-button size="sm" balance="hide" />}
+          {!isHome && (wallet || !isCreate) && <appkit-button size="sm" balance="hide" />}
         </nav>
       </header>
       <main>
-        <Outlet context={wallet} />
+        <Suspense fallback={<div className="page"><p className="text-muted">Loading...</p></div>}>
+          <Outlet context={wallet} />
+        </Suspense>
       </main>
       <footer>
         <p>DM <a href="https://x.com/shukudaidayo" target="_blank" rel="noopener noreferrer">@shukudaidayo</a> on Twitter with feedback</p>
       </footer>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <WalletProvider>
+      <AppShell />
+    </WalletProvider>
   )
 }

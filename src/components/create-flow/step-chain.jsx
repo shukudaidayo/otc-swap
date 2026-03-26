@@ -9,8 +9,14 @@ const APPKIT_NETWORKS = {
   137: polygon,
 }
 
+const CHAIN_LOGOS = {
+  1: new URL('../../assets/tokens/eth.png', import.meta.url).href,
+  8453: new URL('../../assets/chains/base.jpg', import.meta.url).href,
+  137: new URL('../../assets/tokens/pol.png', import.meta.url).href,
+}
+
 const CHAIN_DESCRIPTIONS = {
-  1: 'OG NFTs, CryptoPunks, Art Blocks, etc.',
+  1: 'OG NFTs and ENS names',
   8453: 'Beezie, Slab, and other collectibles',
   137: 'Courtyard collectibles',
 }
@@ -52,12 +58,15 @@ export default function StepChain({ wallet }) {
         {DEPLOYED_CHAINS.map((id) => (
           <button
             key={id}
-            className={`chain-card${(chainId ?? wallet?.chainId) === id ? ' chain-card-active' : ''}`}
+            className={`chain-card${chainId === id ? ' chain-card-active' : ''}`}
             onClick={() => handleSelect(id)}
             type="button"
           >
-            <span className="chain-card-name">{CHAINS[id]?.name || `Chain ${id}`}</span>
-            <span className="chain-card-desc">{CHAIN_DESCRIPTIONS[id] || ''}</span>
+            {CHAIN_LOGOS[id] && <img src={CHAIN_LOGOS[id]} alt="" className="chain-card-logo" />}
+            <div className="chain-card-text">
+              <span className="chain-card-name">{CHAINS[id]?.name || `Chain ${id}`}</span>
+              <span className="chain-card-desc">{CHAIN_DESCRIPTIONS[id] || ''}</span>
+            </div>
           </button>
         ))}
       </div>

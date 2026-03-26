@@ -13,6 +13,7 @@ const ERC1155_URI_ABI = ['function uri(uint256 tokenId) view returns (string)']
  * Caches in sessionStorage.
  */
 export async function fetchMetadata(chainId, tokenAddress, tokenId, assetType = 0) {
+  chainId = Number(chainId)
   const cacheKey = `nft:${chainId}:${tokenAddress}:${tokenId}`
 
   // Check cache
@@ -21,27 +22,25 @@ export async function fetchMetadata(chainId, tokenAddress, tokenId, assetType = 
     if (cached) return JSON.parse(cached)
   } catch {}
 
-  // Try on-chain tokenURI first
-  let result = null
-  try {
-    const uri = await getTokenURI(chainId, tokenAddress, tokenId, assetType)
-    if (uri) {
-      const resolved = resolveURI(uri)
-      const metadata = await fetchJSON(resolved)
-      if (metadata) {
-        result = {
-          name: metadata.name || null,
-          image: metadata.image ? resolveURI(metadata.image) : null,
-          description: metadata.description || null,
+  // Try Alchemy first (pre-cached images, much faster)
+  let result = await fetchAlchemyMetadata(chainId, tokenAddress, tokenId)
+
+  // Fall back to on-chain tokenURI if Alchemy unavailable or returned no image
+  if (!result?.image) {
+    try {
+      const uri = await getTokenURI(chainId, tokenAddress, tokenId, assetType)
+      if (uri) {
+        const resolved = resolveURI(uri)
+        const metadata = await fetchJSON(resolved)
+        if (metadata) {
+          result = {
+            name: metadata.name || null,
+            image: metadata.image ? resolveURI(metadata.image) : null,
+            description: metadata.description || null,
+          }
         }
       }
-    }
-  } catch {}
-
-  // Fall back to Alchemy NFT metadata API if on-chain failed or returned no image
-  if (!result?.image) {
-    const alchemyResult = await fetchAlchemyMetadata(chainId, tokenAddress, tokenId)
-    if (alchemyResult) result = alchemyResult
+    } catch {}
   }
 
   if (!result) return null

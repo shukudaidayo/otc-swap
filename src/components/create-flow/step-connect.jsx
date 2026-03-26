@@ -7,10 +7,7 @@ export default function StepConnect({ wallet }) {
 
   // Auto-advance when wallet is connected
   useEffect(() => {
-    if (wallet) {
-      const timer = setTimeout(next, 800)
-      return () => clearTimeout(timer)
-    }
+    if (wallet) next()
   }, [wallet, next])
 
   return (
@@ -22,7 +19,6 @@ export default function StepConnect({ wallet }) {
           <code className="address-mono">{taker}</code>
         </p>
       )}
-      {!taker && <p className="text-muted">Creating an open offer.</p>}
 
       {wallet ? (
         <div className="wizard-connected">
@@ -30,8 +26,7 @@ export default function StepConnect({ wallet }) {
           <AddressDisplay address={wallet.address} chainId={1} showFull />
         </div>
       ) : (
-        <div className="wizard-connect-prompt">
-          <p>Connect your wallet to continue.</p>
+        <div className="wizard-connect-cta">
           <appkit-button />
         </div>
       )}
