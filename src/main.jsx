@@ -3,24 +3,24 @@ globalThis.Buffer = Buffer
 
 import { lazy } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createHashRouter, RouterProvider } from 'react-router'
+import { createBrowserRouter, RouterProvider } from 'react-router'
 import App from './app'
 import Home from './pages/home'
 import './style.css'
 
 // Lazy-load heavy pages — they pull in ethers, seaport-js, etc.
 const Create = lazy(() => import('./pages/create'))
-const Trade = lazy(() => import('./pages/trade'))
+const Offer = lazy(() => import('./pages/offer'))
 import Offers from './pages/offers'
 
-const router = createHashRouter([
+const router = createBrowserRouter([
   {
     path: '/',
     element: <App />,
     children: [
       { index: true, element: <Home /> },
       { path: 'create', element: <Create /> },
-      { path: 'trade/:chainId/:txHash', element: <Trade /> },
+      { path: 'offer/:chainId/:txHash', element: <Offer /> },
       { path: 'offers', element: <Offers /> },
     ],
   },

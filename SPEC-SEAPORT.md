@@ -171,48 +171,49 @@ Users approve the Seaport contract directly (or a conduit) to transfer their ass
 
 Hash-based routing (works on static hosts, no server config needed).
 
-1. **`#/`** - Home / landing page
+1. **`/`** - Home / landing page
    - Taker address input ("Who are you trading with?") with ENS resolution
    - "Or make an open offer anyone can accept" link
    - "Browse Offers" link
    - No wallet connection UI on this page
 
-2. **`#/create`** - Create a new trade offer (multi-step wizard)
+2. **`/create`** - Create a new offer (multi-step wizard)
    - Guided wizard flow: Connect → Chain → You Offer → You Want → Review → Submit → Done
    - Step indicator across the top (completed steps clickable, future steps dimmed, all green on success)
    - Full details in `SPEC-CREATE-FLOW.md`
 
-3. **`#/trade/{chainId}/{txHash}`** - View and accept a trade
+3. **`/offer/{chainId}/{txHash}`** - View and accept an offer
    - Fetch `OrderRegistered` event from the registration tx receipt
    - Extract signed order from `orderURI` field
    - Display both sides with large NFT images, small logos for cash assets, OpenSea/Uniswap links
    - Layout: "From [address/ENS]" headers for each side ("From Anyone" for open taker)
-   - Display memo (if present) in the trade metadata section
-   - Expiration shown only for open trades; hidden for filled/cancelled/expired
-   - For filled trades, show a "Fill tx" link to the block explorer transaction that settled the trade (found by querying Seaport `OrderFulfilled` events via Blockscout)
-   - Validate order on-chain via Seaport `getOrderStatus` (check if filled/cancelled)
-   - If valid and user is eligible: "Accept Trade" button triggers a verification modal listing any unverified NFTs before proceeding. If all assets are verified, proceeds directly.
-   - If user is maker: "Cancel" button
+   - Display memo (if present) in the offer metadata section
+   - Expiration shown only for open offers; hidden for filled/cancelled/expired
+   - For filled offers, show a "Fill tx" link to the block explorer transaction that settled the offer (found by querying Seaport `OrderFulfilled` events via Blockscout)
+   - Validate order onchain via Seaport `getOrderStatus` (check if filled/cancelled)
+   - If valid and user is eligible: "Accept Offer" button triggers a verification modal listing any unverified NFTs before proceeding. If all assets are verified, proceeds directly.
+   - If user is maker: "Cancel Offer" button
+   - Switch chain warning only shown for open offers
 
-4. **`#/offers`** - Browse offers
+4. **`/offers`** - Browse offers
    - Chain selector (Ethereum / Base / Polygon / All Chains)
    - Category dropdown: "My Offers", "All Open", "All Offers"
    - Auto-promotion on load: starts on "All Offers", promotes to "All Open" if any open offers exist, promotes to "My Offers" if the connected wallet has matching orders. Promotion only happens on initial load — manual category changes are preserved.
    - Offer cards show "From [address/ENS]" on each side, asset thumbnails and names (NFT images fetched via Alchemy), token logos for cash, chain name and status badge
    - Populated by querying `OrderRegistered` events from OTCZone, cross-referenced with Seaport for order status (filled/cancelled)
-   - Memos are not displayed on offer cards. Memos are visible on the trade detail page only.
+   - Memos are not displayed on offer cards. Memos are visible on the offer detail page only.
 
 #### URL Encoding
 
-Since the signed order is stored on-chain in the `OrderRegistered` event, the URL only needs the chain ID and the registration transaction hash:
+Since the signed order is stored onchain in the `OrderRegistered` event, the URL only needs the chain ID and the registration transaction hash:
 
 ```
-#/trade/{chainId}/{txHash}
+/offer/{chainId}/{txHash}
 ```
 
-Example: `#/trade/1/0x7bd391346f238fc36c19291a1f9678773ca5a47a475814592194802cbec983cb`
+Example: `/offer/1/0x7bd391346f238fc36c19291a1f9678773ca5a47a475814592194802cbec983cb`
 
-The trade page fetches the tx receipt, parses the `OrderRegistered` event to extract the full signed order, and has everything needed to display the trade and call `fulfillOrder`. This is the same pattern used in the current implementation — short, clean URLs with on-chain data retrieval.
+The offer page fetches the tx receipt, parses the `OrderRegistered` event to extract the full signed order, and has everything needed to display the offer and call `fulfillOrder`. Uses path-based routing (not hash routing) so that crawlers can read the URL for OG meta tags.
 
 #### Order Discovery / Offers Page
 
@@ -512,7 +513,7 @@ The only custom contract is the OTCZone (~135 lines), deployed once per chain. F
 
 ## 12. Open Questions
 
-1. ~~**URL length**~~: **Resolved** — URLs use the `#/trade/{chainId}/{txHash}` format, same as the current implementation. The signed order is stored on-chain in the `OrderRegistered` event and fetched via tx receipt.
+1. ~~**URL length**~~: **Resolved** — URLs use the `/offer/{chainId}/{txHash}` format. The signed order is stored onchain in the `OrderRegistered` event and fetched via tx receipt.
 
 2. ~~**Offers page without events**~~: **Resolved** — the OTCZone contract emits `OrderRegistered` events, providing an on-chain index of published orders. The offers page queries these events and cross-references with Seaport for order status.
 

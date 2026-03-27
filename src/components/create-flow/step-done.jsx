@@ -3,8 +3,8 @@ import { Link } from 'react-router'
 
 export default function StepDone({ chainId, txHash }) {
   const [copied, setCopied] = useState(false)
-  const tradePath = `/trade/${chainId}/${txHash}`
-  const fullUrl = `${window.location.origin}${window.location.pathname}#${tradePath}`
+  const offerPath = `/offer/${chainId}/${txHash}`
+  const fullUrl = `${window.location.origin}${offerPath}`
 
   const handleCopy = async () => {
     try {
@@ -37,7 +37,7 @@ export default function StepDone({ chainId, txHash }) {
       </div>
 
       <div className="done-actions">
-        <Link to={tradePath} className="btn">View your offer</Link>
+        <Link to={offerPath} className="btn">View your offer</Link>
         <Link to="/" className="btn btn-secondary">Create another offer</Link>
       </div>
     </div>

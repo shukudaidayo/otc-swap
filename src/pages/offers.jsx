@@ -249,11 +249,11 @@ const TOKEN_LOGOS = {
 
 function OfferCard({ order, invalidHoldings }) {
   const { chainId } = order
-  const tradeUrl = `/trade/${chainId}/${order.transactionHash}`
+  const offerUrl = `/offer/${chainId}/${order.transactionHash}`
   const params = order.order?.parameters
 
   return (
-    <Link to={tradeUrl} className={`offer-card${invalidHoldings ? ' offer-card-invalid' : ''}`}>
+    <Link to={offerUrl} className={`offer-card${invalidHoldings ? ' offer-card-invalid' : ''}`}>
       <div className="offer-card-side">
         <div className="offer-card-from">
           From <AddressDisplay address={order.maker} chainId={chainId} asSpan />

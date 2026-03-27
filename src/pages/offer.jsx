@@ -16,7 +16,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 // Known Seaport/Zone error selectors
 const KNOWN_ERRORS = {
-  '0x82b42900': 'You are not the authorized taker for this trade.',
+  '0x82b42900': 'You are not the authorized taker for this offer.',
   '0x98d4901c': 'This order has been cancelled.',
 }
 
@@ -28,7 +28,7 @@ function friendlyFillError(err) {
   }
   // Seaport reverts with generic data when token transfers fail
   if (raw.includes('execution reverted') || err.code === 'CALL_EXCEPTION') {
-    return 'This trade cannot be completed. The maker may no longer hold the offered assets, or approvals may have been revoked.'
+    return 'This offer cannot be accepted. The maker may no longer hold the offered assets, or approvals may have been revoked.'
   }
   const nested = (err?.info?.error?.message || '').toLowerCase()
   if (err.code === 'ACTION_REJECTED' || raw.includes('user rejected') || nested.includes('rejected') || nested.includes('denied') || nested.includes('user refused') || nested.includes('user canceled')) {
@@ -40,7 +40,7 @@ function friendlyFillError(err) {
   return err.reason || err.shortMessage || 'Transaction failed.'
 }
 
-export default function Trade() {
+export default function Offer() {
   const { chainId, txHash } = useParams()
   const wallet = useOutletContext()
 
@@ -197,7 +197,7 @@ export default function Trade() {
       }
     })
 
-    const txSteps = buildSteps(takerAssets, 'Accept Trade')
+    const txSteps = buildSteps(takerAssets, 'Accept Offer')
     setSteps(txSteps)
 
     function updateStep(index, update) {
@@ -286,14 +286,14 @@ export default function Trade() {
 
   if (loadError) {
     return (
-      <div className="page trade">
-        <h1>Invalid Trade</h1>
+      <div className="page offer-detail">
+        <h1>Invalid Offer</h1>
         <p className="form-error">{loadError}</p>
       </div>
     )
   }
 
-  if (!orderData) return <div className="page trade"><p className="text-muted">Loading order...</p></div>
+  if (!orderData) return <div className="page offer-detail"><p className="text-muted">Loading order...</p></div>
 
   const params = orderData.order.parameters
   const maker = params.offerer
@@ -334,10 +334,10 @@ export default function Trade() {
   }))
 
   return (
-    <div className="page trade">
-      <h1>Trade Details</h1>
+    <div className="page offer-detail">
+      <h1>Offer Details</h1>
 
-      <div className="trade-status-bar">
+      <div className="offer-status-bar">
         {statusLoading ? (
           <span className="status-loading">Loading status...</span>
         ) : (
@@ -350,15 +350,15 @@ export default function Trade() {
         </button>
       </div>
 
-      <div className="trade-parties">
-        <div className="trade-party">
+      <div className="offer-parties">
+        <div className="offer-party">
           <h3 className="party-address">
             From <AddressDisplay address={maker} chainId={Number(chainId)} />
             {isMaker && <span className="you-badge">you</span>}
           </h3>
           <AssetList assets={offerAssets} chainId={chainId} holdings={offerHoldings} holdingsLabel="Maker" />
         </div>
-        <div className="trade-party">
+        <div className="offer-party">
           <h3 className="party-address">
             {taker === ZERO_ADDRESS ? (
               <>From Anyone</>
@@ -373,9 +373,9 @@ export default function Trade() {
         </div>
       </div>
 
-      <div className="trade-meta">
+      <div className="offer-meta">
         {orderData.memo && (
-          <p className="trade-memo">
+          <p className="offer-memo">
             <span className="meta-label">Memo:</span> {orderData.memo}
           </p>
         )}
@@ -411,15 +411,15 @@ export default function Trade() {
       <TxChecklist steps={steps} />
 
       {!wallet && isOpen && (
-        <p className="text-muted">Connect your wallet to accept or cancel this trade.</p>
+        <p className="text-muted">Connect your wallet to accept or cancel this offer.</p>
       )}
 
-      {wallet && wrongChain && (
-        <p className="form-error">Switch your wallet to {CHAINS[Number(chainId)]?.name || `chain ${chainId}`} to interact with this trade.</p>
+      {wallet && wrongChain && isOpen && (
+        <p className="form-error">Switch your wallet to {CHAINS[Number(chainId)]?.name || `chain ${chainId}`} to interact with this offer.</p>
       )}
 
       {wallet && !wrongChain && isOpen && !isExpired && wrongTaker && !isMaker && (
-        <p className="form-error">This trade is restricted to a specific taker. Your connected wallet is not the authorized taker.</p>
+        <p className="form-error">This offer is restricted to a specific taker. Your connected wallet is not the authorized taker.</p>
       )}
 
       {wallet && !wrongChain && isOpen && !isExpired && isTaker && !isMaker && (() => {
@@ -429,13 +429,13 @@ export default function Trade() {
         return (
           <>
             {makerMissing && (
-              <p className="form-error">This trade cannot be completed — the maker no longer holds all offered assets.</p>
+              <p className="form-error">This offer cannot be accepted — the maker no longer holds all offered assets.</p>
             )}
             {takerMissing && (
-              <p className="form-error">You do not hold all required assets to accept this trade.</p>
+              <p className="form-error">You do not hold all required assets to accept this offer.</p>
             )}
             <button className="btn btn-primary" onClick={checkVerificationAndFill} disabled={submitting || blocked}>
-              {submitting ? 'Accepting...' : 'Accept Trade'}
+              {submitting ? 'Accepting...' : 'Accept Offer'}
             </button>
           </>
         )
@@ -443,7 +443,7 @@ export default function Trade() {
 
       {wallet && !wrongChain && isOpen && isMaker && (
         <button className="btn btn-cancel" onClick={handleCancel} disabled={submitting}>
-          {submitting ? 'Cancelling...' : 'Cancel Trade'}
+          {submitting ? 'Cancelling...' : 'Cancel Offer'}
         </button>
       )}
 
