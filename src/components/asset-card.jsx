@@ -87,10 +87,13 @@ export default function AssetCard({ asset, chainId, compact = true }) {
   // Native currency — simple display, no verification needed
   const nativeSym = CHAINS[chainId]?.nativeSymbol || 'ETH'
   const nativeLogo = TOKEN_LOGOS[nativeSym]
-  const CHAIN_SLUGS = { 1: 'ethereum', 8453: 'base', 137: 'polygon' }
+  const CHAIN_SLUGS = { 1: 'ethereum', 8453: 'base', 137: 'polygon', 57073: 'ink' }
   const chainSlug = CHAIN_SLUGS[chainId] || 'ethereum'
   if (isNative) {
-    const nativeUniswapUrl = `https://app.uniswap.org/swap?chain=${chainSlug}&outputCurrency=NATIVE`
+    const nativeSwapUrl = chainId === 57073
+      ? `https://velodrome.finance/swap?to=eth&chain1=57073`
+      : `https://app.uniswap.org/swap?chain=${chainSlug}&outputCurrency=NATIVE`
+    const nativeSwapLabel = chainId === 57073 ? 'Buy on Velodrome' : 'Buy on Uniswap'
     return (
       <div className={`asset-card asset-card-verified${!compact ? ' asset-card-large asset-card-cash' : ''}`}>
         <div className="asset-card-image">
@@ -104,8 +107,8 @@ export default function AssetCard({ asset, chainId, compact = true }) {
           <span className="asset-card-name">{asset.amount || '0'} {nativeSym}</span>
           {!compact && (
             <div className="asset-card-links">
-              <a href={nativeUniswapUrl} target="_blank" rel="noopener noreferrer" className="btn-link btn-sm">
-                Buy on Uniswap
+              <a href={nativeSwapUrl} target="_blank" rel="noopener noreferrer" className="btn-link btn-sm">
+                {nativeSwapLabel}
               </a>
             </div>
           )}
@@ -123,10 +126,15 @@ export default function AssetCard({ asset, chainId, compact = true }) {
     : metadata?.name || `#${asset.tokenId}`
 
   const openseaUrl = isNFT ? `https://opensea.io/assets/${
-    { 1: 'ethereum', 8453: 'base', 137: 'matic' }[chainId] || 'ethereum'
+    { 1: 'ethereum', 8453: 'base', 137: 'matic', 57073: 'ink' }[chainId] || 'ethereum'
   }/${asset.token}/${asset.tokenId}` : null
 
-  const uniswapUrl = isERC20 ? `https://app.uniswap.org/swap?chain=${chainSlug}&outputCurrency=${asset.token}` : null
+  const swapUrl = isERC20
+    ? chainId === 57073
+      ? `https://velodrome.finance/swap?to=${asset.token}&chain1=57073`
+      : `https://app.uniswap.org/swap?chain=${chainSlug}&outputCurrency=${asset.token}`
+    : null
+  const swapLabel = chainId === 57073 ? 'Buy on Velodrome' : 'Buy on Uniswap'
 
   return (
     <div className={`asset-card asset-card-${vStatus.status}${!compact ? ' asset-card-large' : ''}${!compact && isERC20 ? ' asset-card-cash' : ''}`}>
@@ -174,9 +182,9 @@ export default function AssetCard({ asset, chainId, compact = true }) {
                 View on OpenSea
               </a>
             )}
-            {uniswapUrl && (
-              <a href={uniswapUrl} target="_blank" rel="noopener noreferrer" className="btn-link btn-sm">
-                Buy on Uniswap
+            {swapUrl && (
+              <a href={swapUrl} target="_blank" rel="noopener noreferrer" className="btn-link btn-sm">
+                {swapLabel}
               </a>
             )}
           </div>

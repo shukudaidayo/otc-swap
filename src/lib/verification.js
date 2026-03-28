@@ -70,6 +70,7 @@ export function getEtherscanUrl(chainId, address) {
     1: 'https://etherscan.io',
     8453: 'https://basescan.org',
     137: 'https://polygonscan.com',
+    57073: 'https://explorer.inkonchain.com',
   }
   const base = explorers[chainId] || explorers[1]
   return `${base}/address/${address}`

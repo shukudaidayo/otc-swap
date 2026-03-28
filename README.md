@@ -28,6 +28,7 @@ OTCZone never touches user funds. Assets stay in your wallet until the trade exe
 | Ethereum | [`0x07C0000003f04E1b0b040A5B6c8AAB792d9546fc`](https://etherscan.io/address/0x07C0000003f04E1b0b040A5B6c8AAB792d9546fc) |
 | Base | [`0x07C00000090AdB1D14b093C1A6b40135779af27C`](https://basescan.org/address/0x07C00000090AdB1D14b093C1A6b40135779af27C) |
 | Polygon | [`0x07C000000b63fEe6aC08B91ad7aD3d999b28d740`](https://polygonscan.com/address/0x07C000000b63fEe6aC08B91ad7aD3d999b28d740) |
+| Ink | [`0x07C00000042fFF5Ad7cDC3A2aF3F4A8708B8CD52`](https://explorer.inkonchain.com/address/0x07C00000042fFF5Ad7cDC3A2aF3F4A8708B8CD52) |
 
 ## Trust model
 
@@ -39,7 +40,7 @@ OTCZone never touches user funds. Assets stay in your wallet until the trade exe
 
 ## Tech stack
 
-- **Chains**: Ethereum, Base, Polygon
+- **Chains**: Ethereum, Base, Polygon, Ink
 - **Settlement**: Seaport 1.6 (immutable, canonical address across all chains)
 - **Custom contract**: OTCZone (Solidity 0.8.28, Foundry)
 - **Frontend**: React, ethers.js, Vite — static site, no server required

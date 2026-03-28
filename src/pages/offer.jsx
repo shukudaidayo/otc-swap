@@ -374,22 +374,6 @@ export default function Offer() {
       </div>
 
       <div className="offer-meta">
-        {orderData.memo && (
-          <p className="offer-memo">
-            <span className="meta-label">Memo:</span> {orderData.memo}
-          </p>
-        )}
-        {fillTxHash && (() => {
-          const explorers = { 1: 'https://etherscan.io', 8453: 'https://basescan.org', 137: 'https://polygonscan.com' }
-          const base = explorers[Number(chainId)] || explorers[1]
-          const url = `${base}/tx/${fillTxHash}`
-          return (
-            <p>
-              <span className="meta-label">Fill tx:</span>{' '}
-              <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
-            </p>
-          )
-        })()}
         {statusLabel === 'open' && params.endTime && Number(params.endTime) > 0 && (() => {
           const expiryMs = Number(params.endTime) * 1000
           const expiryDate = new Date(expiryMs)
@@ -405,6 +389,29 @@ export default function Offer() {
             </p>
           )
         })()}
+        {fillTxHash && (() => {
+          const explorers = { 1: 'https://etherscan.io', 8453: 'https://basescan.org', 137: 'https://polygonscan.com', 57073: 'https://explorer.inkonchain.com' }
+          const base = explorers[Number(chainId)] || explorers[1]
+          const url = `${base}/tx/${fillTxHash}`
+          return (
+            <p>
+              <span className="meta-label">Fill tx:</span>{' '}
+              <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+            </p>
+          )
+        })()}
+        {orderData.memo && (() => {
+          const multiline = orderData.memo.includes('\n')
+          return (
+            <div className="offer-memo">
+              <span className="meta-label">Memo:</span>
+              {multiline
+                ? <div style={{ whiteSpace: 'pre-wrap', paddingLeft: '1rem', marginTop: '0.25rem' }}>{orderData.memo}</div>
+                : <> {orderData.memo}</>
+              }
+            </div>
+          )
+        })()}
       </div>
 
       {error && <p className="form-error">{error}</p>}
@@ -415,7 +422,33 @@ export default function Offer() {
       )}
 
       {wallet && wrongChain && isOpen && (
-        <p className="form-error">Switch your wallet to {CHAINS[Number(chainId)]?.name || `chain ${chainId}`} to interact with this offer.</p>
+        <div className="form-error">
+          Switch your wallet to {CHAINS[Number(chainId)]?.name || `chain ${chainId}`} to interact with this offer.
+          <button
+            className="btn btn-sm"
+            style={{ marginLeft: '0.75rem' }}
+            onClick={async () => {
+              const cid = Number(chainId)
+              const hexChainId = '0x' + cid.toString(16)
+              const chain = CHAINS[cid]
+              try {
+                await wallet.provider.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: hexChainId,
+                    chainName: chain?.name || `Chain ${cid}`,
+                    nativeCurrency: { name: 'Ether', symbol: chain?.nativeSymbol || 'ETH', decimals: 18 },
+                    rpcUrls: [chain?.rpcUrl],
+                    blockExplorerUrls: chain?.blockscoutApi ? [chain.blockscoutApi.replace(/\/api\/?$/, '')] : undefined,
+                  }],
+                })
+              } catch {}
+            }}
+            type="button"
+          >
+            Switch Network
+          </button>
+        </div>
       )}
 
       {wallet && !wrongChain && isOpen && !isExpired && wrongTaker && !isMaker && (

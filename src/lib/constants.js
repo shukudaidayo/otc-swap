@@ -4,6 +4,7 @@ export const CHAINS = {
   1: { name: 'Ethereum', nativeSymbol: 'ETH', rpcUrl: 'https://ethereum-rpc.publicnode.com', blockscoutApi: 'https://eth.blockscout.com/api' },
   8453: { name: 'Base', nativeSymbol: 'ETH', rpcUrl: 'https://base-rpc.publicnode.com', blockscoutApi: 'https://base.blockscout.com/api' },
   137: { name: 'Polygon', nativeSymbol: 'POL', rpcUrl: 'https://polygon-bor-rpc.publicnode.com', blockscoutApi: 'https://polygon.blockscout.com/api' },
+  57073: { name: 'Ink', nativeSymbol: 'ETH', rpcUrl: 'https://rpc-gel.inkonchain.com', blockscoutApi: 'https://explorer.inkonchain.com/api' },
 }
 
 // Seaport 1.6 canonical address (same on all chains)
@@ -14,6 +15,7 @@ export const ZONE_ADDRESSES = {
   1: '0x07C0000003f04E1b0b040A5B6c8AAB792d9546fc',
   8453: '0x07C00000090AdB1D14b093C1A6b40135779af27C',
   137: '0x07C000000b63fEe6aC08B91ad7aD3d999b28d740',
+  57073: '0x07C00000042fFF5Ad7cDC3A2aF3F4A8708B8CD52',
 }
 
 // Block number at or before OTCZone deployment — used as fromBlock for event queries
@@ -21,6 +23,7 @@ export const ZONE_DEPLOY_BLOCKS = {
   1: 24694574,
   8453: 43637380,
   137: 84472380,
+  57073: 41165529,
 }
 
 // Whitelisted ERC-20 tokens per chain
@@ -42,6 +45,11 @@ export const WHITELISTED_ERC20 = {
     '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619': { symbol: 'WETH', decimals: 18 },
     '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359': { symbol: 'USDC', decimals: 6 },
     '0xc2132D05D31c914a87C6611C10748AEb04B58e8F': { symbol: 'USDT0', decimals: 6 },
+  },
+  57073: {
+    '0x4200000000000000000000000000000000000006': { symbol: 'WETH', decimals: 18 },
+    '0x2D270e6886d130D724215A266106e6832161EAEd': { symbol: 'USDC', decimals: 6 },
+    '0x0200C29006150606B650577BBE7B6248F58470c1': { symbol: 'USDT0', decimals: 6 },
   },
 }
 

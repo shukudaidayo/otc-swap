@@ -363,7 +363,7 @@ async function queryViaRpc(chainId, zoneAddress, chain) {
   // Scan last ~50k blocks as fallback (roughly 1-2 days on Polygon, 1 week on Ethereum)
   const fromBlock = Math.max(latestBlock - 49999, ZONE_DEPLOY_BLOCKS[chainId] ?? 0)
 
-  const chunkSize = (chainId === 137 || chainId === 8453) ? 9999 : 49999
+  const chunkSize = (chainId === 137 || chainId === 8453 || chainId === 57073) ? 9999 : 49999
   const ranges = []
   for (let start = fromBlock; start <= latestBlock; start += chunkSize + 1) {
     ranges.push([start, Math.min(start + chunkSize, latestBlock)])

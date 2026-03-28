@@ -54,3 +54,18 @@ contract DeployOTCZonePolygon is Script {
         console.log("OTCZone deployed at:", address(zone));
     }
 }
+
+contract DeployOTCZoneInk is Script {
+    function run() external {
+        address[] memory tokens = new address[](3);
+        tokens[0] = 0x4200000000000000000000000000000000000006; // WETH
+        tokens[1] = 0x2D270e6886d130D724215A266106e6832161EAEd; // USDC
+        tokens[2] = 0x0200C29006150606B650577BBE7B6248F58470c1; // USDT0
+
+        vm.startBroadcast();
+        OTCZone zone = new OTCZone(tokens, SEAPORT);
+        vm.stopBroadcast();
+
+        console.log("OTCZone deployed at:", address(zone));
+    }
+}

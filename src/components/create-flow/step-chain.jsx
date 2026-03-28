@@ -2,23 +2,27 @@ import { useCreateFlow } from './context'
 import { ZONE_ADDRESSES, CHAINS } from '../../lib/constants'
 import { useAppKitNetwork } from '@reown/appkit/react'
 import { mainnet, base, polygon } from '@reown/appkit/networks'
+import { ink } from '../../lib/appkit'
 
 const APPKIT_NETWORKS = {
   1: mainnet,
   8453: base,
   137: polygon,
+  57073: ink,
 }
 
 const CHAIN_LOGOS = {
   1: new URL('../../assets/tokens/eth.png', import.meta.url).href,
   8453: new URL('../../assets/chains/base.jpg', import.meta.url).href,
   137: new URL('../../assets/tokens/pol.png', import.meta.url).href,
+  57073: new URL('../../assets/chains/ink.png', import.meta.url).href,
 }
 
 const CHAIN_DESCRIPTIONS = {
   1: 'OG NFTs and ENS names',
   8453: 'Beezie, Slab, and other collectibles',
   137: 'Courtyard collectibles',
+  57073: 'Select Phygitals collectibles',
 }
 
 const DEPLOYED_CHAINS = Object.entries(ZONE_ADDRESSES)

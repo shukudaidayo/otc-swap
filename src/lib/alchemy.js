@@ -1,9 +1,17 @@
+import { CHAINS } from './constants'
+
 const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY
 
 const CHAIN_NETWORKS = {
   1: 'eth-mainnet',
   8453: 'base-mainnet',
   137: 'polygon-mainnet',
+}
+
+// Chains where Alchemy NFT API isn't available — use Blockscout v2 instead
+function blockscoutApi(chainId) {
+  if (CHAIN_NETWORKS[chainId]) return null
+  return CHAINS[chainId]?.blockscoutApi?.replace(/\/api\/?$/, '/api/v2') || null
 }
 
 /**
@@ -13,6 +21,9 @@ const CHAIN_NETWORKS = {
  *                    isSpam, safelistStatus, image, collectionImage }
  */
 export async function fetchCollections(address, chainId, pageKey = null) {
+  const bsApi = blockscoutApi(chainId)
+  if (bsApi) return fetchCollectionsBlockscout(bsApi, address, pageKey)
+
   if (!ALCHEMY_API_KEY) throw new Error('VITE_ALCHEMY_API_KEY not set')
 
   const network = CHAIN_NETWORKS[chainId]
@@ -52,6 +63,9 @@ export async function fetchCollections(address, chainId, pageKey = null) {
  * Pages through all results automatically.
  */
 export async function fetchNFTsForContract(address, chainId, contractAddress) {
+  const bsApi = blockscoutApi(chainId)
+  if (bsApi) return fetchNFTsForContractBlockscout(bsApi, address, contractAddress)
+
   if (!ALCHEMY_API_KEY) return []
 
   const network = CHAIN_NETWORKS[chainId]
@@ -82,6 +96,74 @@ export async function fetchNFTsForContract(address, chainId, contractAddress) {
     })))
     pageKey = data.pageKey || null
   } while (pageKey)
+
+  return allNfts
+}
+
+// --- Blockscout v2 fallback for chains without Alchemy NFT API ---
+
+async function fetchCollectionsBlockscout(apiBase, address, pageKey = null) {
+  let url = `${apiBase}/addresses/${address}/nft/collections?type=ERC-721%2CERC-1155`
+  if (pageKey) {
+    const params = JSON.parse(pageKey)
+    const qs = new URLSearchParams(params).toString()
+    url += `&${qs}`
+  }
+
+  const res = await fetch(url)
+  if (!res.ok) return { collections: [], pageKey: null, totalCount: 0 }
+
+  const data = await res.json()
+  const collections = (data.items || []).map((item) => {
+    const firstInstance = item.token_instances?.[0]
+    const image = item.token?.icon_url || firstInstance?.image_url || null
+    return {
+      address: item.token?.address_hash,
+      name: item.token?.name || '',
+      tokenType: (item.token?.type || 'ERC-721').replace('-', ''),
+      numDistinctTokensOwned: String(item.token_instances?.length || item.amount || '0'),
+      totalBalance: String(item.amount || '0'),
+      isSpam: false,
+      safelistStatus: null,
+      image,
+      collectionImage: image,
+    }
+  })
+
+  const nextKey = data.next_page_params ? JSON.stringify(data.next_page_params) : null
+  return { collections, pageKey: nextKey, totalCount: collections.length }
+}
+
+async function fetchNFTsForContractBlockscout(apiBase, address, contractAddress) {
+  let allNfts = []
+  let nextParams = null
+
+  do {
+    let url = `${apiBase}/tokens/${contractAddress}/instances?holder_address_hash=${address}`
+    if (nextParams) {
+      const qs = new URLSearchParams(nextParams).toString()
+      url += `&${qs}`
+    }
+
+    const res = await fetch(url)
+    if (!res.ok) break
+
+    const data = await res.json()
+    for (const inst of data.items || []) {
+      allNfts.push({
+        contract: contractAddress,
+        contractName: inst.token?.name || '',
+        tokenType: (inst.token_type || inst.token?.type || 'ERC-721').replace('-', ''),
+        tokenId: inst.id,
+        name: inst.metadata?.name || `#${inst.id}`,
+        image: inst.image_url || inst.metadata?.image || null,
+        balance: String(inst.value ?? '1'),
+        isSpam: false,
+        safelistStatus: null,
+      })
+    }
+    nextParams = data.next_page_params || null
+  } while (nextParams)
 
   return allNfts
 }

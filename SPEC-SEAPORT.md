@@ -27,7 +27,7 @@ Both otc.sudoswap.xyz and opensea.io/deals are dead. The ecosystem needs a simpl
 
 ## 2. V1 Scope
 
-- **Chains**: Ethereum, Base, Polygon
+- **Chains**: Ethereum, Base, Polygon, Ink
 - **Token types**: ERC-721, ERC-1155, ERC-20 (whitelisted only), and native ETH (taker side only — Seaport requires the caller to provide ETH via `msg.value`, so the maker cannot offer native ETH in a standard `fulfillOrder` flow)
 - **Trade structure**: Multi-asset <-> multi-asset (each side can have 1+ items)
 - **Counterparty**: Optionally restricted to a specific address, or open to anyone
@@ -108,7 +108,7 @@ The contract implements Seaport 1.6's `ZoneInterface` (from `seaport-types`). It
 
 It serves three purposes:
 1. **Taker validation**: Checks that the fulfiller matches the allowed taker in `zoneHash`.
-2. **ERC-20 whitelist**: Rejects orders containing non-whitelisted ERC-20 tokens, both at registration and at fulfillment. Whitelist is set at deployment (immutable — no admin can modify it). Whitelists per chain: Ethereum (WETH, USDC, USDT, USDS, EURC), Base (WETH, USDC, USDS, EURC), Polygon (WETH, USDC, USDT0).
+2. **ERC-20 whitelist**: Rejects orders containing non-whitelisted ERC-20 tokens, both at registration and at fulfillment. Whitelist is set at deployment (immutable — no admin can modify it). Whitelists per chain: Ethereum (WETH, USDC, USDT, USDS, EURC), Base (WETH, USDC, USDS, EURC), Polygon (WETH, USDC, USDT0), Ink (WETH, USDC, USDT0).
 3. **Order registry**: `registerOrder` publishes signed orders for discovery. It accepts a single `OrderRegistration` struct (defined outside the contract for clean ABI generation) containing the order hash, maker, taker, offer/consideration items, signature, orderURI, and an optional memo (max 280 bytes). It verifies the maker's EIP-712 signature on-chain using Solady's `SignatureCheckerLib`, which supports EOA signatures (both standard 65-byte and EIP-2098 compact 64-byte) and EIP-1271 contract wallet signatures. The indexed `maker` in the `OrderRegistered` event is cryptographically guaranteed to be the actual order signer — regardless of who submits the transaction. This allows proxy wallets, gas sponsors, and smart wallets to register orders on behalf of makers.
 
 ```solidity
@@ -196,7 +196,7 @@ Hash-based routing (works on static hosts, no server config needed).
    - Switch chain warning only shown for open offers
 
 4. **`/offers`** - Browse offers
-   - Chain selector (Ethereum / Base / Polygon / All Chains)
+   - Chain selector (Ethereum / Base / Polygon / Ink / All Chains)
    - Category dropdown: "My Offers", "All Open", "All Offers"
    - Auto-promotion on load: starts on "All Offers", promotes to "All Open" if any open offers exist, promotes to "My Offers" if the connected wallet has matching orders. Promotion only happens on initial load — manual category changes are preserved.
    - Offer cards show "From [address/ENS]" on each side, asset thumbnails and names (NFT images fetched via Alchemy), token logos for cash, chain name and status badge
@@ -349,7 +349,7 @@ All results cached in `sessionStorage` to avoid redundant fetches.
 
 1. User enters counterparty address (or ENS name) on the homepage, or chooses "open offer"
 2. Connects wallet (auto-skipped if already connected)
-3. Selects chain (Ethereum / Base / Polygon) — triggers wallet network switch
+3. Selects chain (Ethereum / Base / Polygon / Ink) — triggers wallet network switch
 4. Selects assets to offer from wallet (collectibles grid + cash list, with search/filter and manual entry fallback)
 5. Selects assets wanted in return (from taker's wallet if directed, or manual entry if open)
 6. Reviews summary: both sides, expiration (default 30 days, configurable), optional memo (max 280 bytes)
@@ -393,6 +393,7 @@ All contracts deployed via CREATE2 (Nick's Factory at `0x4e59b44847b379578588920
 | Ethereum | `0x07C0000003f04E1b0b040A5B6c8AAB792d9546fc` | WETH, USDC, USDT, USDS, EURC |
 | Base | `0x07C00000090AdB1D14b093C1A6b40135779af27C` | WETH, USDC, USDS, EURC |
 | Polygon | `0x07C000000b63fEe6aC08B91ad7aD3d999b28d740` | WETH, USDC, USDT0 |
+| Ink | `0x07C00000042fFF5Ad7cDC3A2aF3F4A8708B8CD52` | WETH, USDC, USDT0 |
 
 ---
 
@@ -430,7 +431,7 @@ All contracts deployed via CREATE2 (Nick's Factory at `0x4e59b44847b379578588920
 ### Farcaster / Base App Mini-Apps
 - The site's architecture (no backend, hash routing, standard EIP-1193 wallet interface) is compatible with mini-app embedding.
 - Main work: detect mini-app context and replace the wallet provider (Farcaster SDK or Coinbase Wallet SDK instead of Reown AppKit). Everything downstream (ethers.js, Seaport calls) stays the same.
-- Requires a separate OTCZone deployment per chain (already done for Base and Polygon).
+- Requires a separate OTCZone deployment per chain (already done for Base, Polygon, and Ink).
 
 ### Address Identity Enhancements
 
