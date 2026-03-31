@@ -164,12 +164,25 @@ export default function Offers() {
     return false
   })
 
-  // Sort open offers: valid first, then invalid (maker doesn't hold assets)
   if (category === 'open') {
+    // Sort: valid first, then by soonest expiration
     filtered.sort((a, b) => {
       const aValid = a.makerHoldsAll !== false ? 1 : 0
       const bValid = b.makerHoldsAll !== false ? 1 : 0
-      return bValid - aValid
+      if (aValid !== bValid) return bValid - aValid
+      const aEnd = Number(a.order?.parameters?.endTime || 0)
+      const bEnd = Number(b.order?.parameters?.endTime || 0)
+      if (!aEnd && !bEnd) return 0
+      if (!aEnd) return 1
+      if (!bEnd) return -1
+      return aEnd - bEnd
+    })
+  } else {
+    // Sort by creation time, newest first
+    filtered.sort((a, b) => {
+      const aStart = Number(a.order?.parameters?.startTime || 0)
+      const bStart = Number(b.order?.parameters?.startTime || 0)
+      return bStart - aStart
     })
   }
 

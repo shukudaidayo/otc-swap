@@ -229,9 +229,9 @@ The OTCZone contract emits `OrderRegistered` events when makers publish their or
 
 Events are cross-referenced with Seaport's `getOrderStatus` to determine which orders are still open, filled, or cancelled.
 
-- **My Offers**: Filter `OrderRegistered` events where `maker` or `taker` matches the connected wallet.
-- **All Open**: All `OrderRegistered` events, filtered client-side to exclude filled/cancelled/expired orders. Paginated.
-- **All Offers**: All `OrderRegistered` events regardless of status.
+- **My Offers**: Filter `OrderRegistered` events where `maker` or `taker` matches the connected wallet. Sorted by creation time (newest first).
+- **All Open**: All `OrderRegistered` events, filtered client-side to exclude filled/cancelled/expired orders. Sorted by validity (valid offers first), then by soonest expiration. Paginated.
+- **All Offers**: All `OrderRegistered` events regardless of status. Sorted by creation time (newest first).
 
 Each `OrderRegistered` event contains the `orderURI`, which has everything needed to reconstruct the trade page link.
 
@@ -319,7 +319,7 @@ The picker auto-fetches pages until 50 non-spam collections are loaded (or the w
 The trade page and offers page perform on-chain balance checks to verify that parties actually hold the assets in an order. This prevents users from attempting trades that will revert.
 
 - **Trade page**: Checks maker's holdings (offer items) and taker's holdings (consideration items) via direct contract calls (`ownerOf` for ERC-721, `balanceOf` for ERC-1155/ERC-20, `provider.getBalance` for native ETH). Missing assets are flagged per-item, and the Accept button is disabled if either side is missing assets.
-- **Offers page**: Checks maker holdings for all open offers. Orders where the maker no longer holds assets are sorted to the bottom and visually dimmed.
+- **Offers page**: Checks maker holdings for all open offers. In the "All Open" view, orders where the maker no longer holds assets are sorted to the bottom and visually dimmed.
 - **Error priority**: Wrong-taker errors take precedence over holdings errors, which take precedence over the Accept button.
 
 Friendly error messages map known Seaport/Zone revert selectors (e.g., `0x82b42900` → "You are not the authorized taker") to human-readable messages.
