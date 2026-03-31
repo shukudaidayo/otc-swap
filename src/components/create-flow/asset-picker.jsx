@@ -158,6 +158,9 @@ export default function AssetPicker({ address, chainId, selected, onChange, show
 
 // ── Collectibles Tab ──────────────────────────────────────────────
 
+const OPENSEA_CHAINS = { 1: 'ethereum', 8453: 'base', 137: 'matic', 57073: 'ink' }
+const openseaLogo = new URL('../../assets/opensea.svg', import.meta.url).href
+
 function CollectiblesTab({ address, chainId, selected, onChange, isOwnWallet, backRef }) {
   const [collections, setCollections] = useState({}) // { contractAddr: normalizedCol }
   const [loading, setLoading] = useState(false)
@@ -495,6 +498,14 @@ function CollectiblesTab({ address, chainId, selected, onChange, isOwnWallet, ba
                       <span className="asset-card-placeholder">?</span>
                     )}
                     {sel && <span className="nft-grid-check">&#10003;</span>}
+                    <a
+                      href={`https://opensea.io/assets/${OPENSEA_CHAINS[chainId] || 'ethereum'}/${nft.contract}/${nft.tokenId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="nft-grid-opensea"
+                      title="View on OpenSea"
+                      onClick={(e) => e.stopPropagation()}
+                    ><img src={openseaLogo} alt="OpenSea" /></a>
                   </div>
                   <div className="nft-grid-label">
                     <span className="nft-grid-name">{nft.name}</span>

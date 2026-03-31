@@ -22,7 +22,7 @@ const CHAIN_LOGOS = {
 
 const CHAIN_DESCRIPTIONS = {
   1: 'OG NFTs and ENS names',
-  8453: 'Beezie, Slab, and other collectibles',
+  8453: 'Beezie, Slab, and RIP.FUN',
   137: 'Courtyard collectibles',
   57073: 'Select Phygitals collectibles',
 }

@@ -409,6 +409,13 @@ All contracts deployed via CREATE2 (Nick's Factory at `0x4e59b44847b379578588920
 
 ## 9. Future Roadmap
 
+### Taker Refusal
+- Allow the designated taker of a directed offer to refuse it, marking it as unfillable and removing it from open offers.
+- Requires a new OTCZone function (`refuseOrder`) that stores a `refused[orderHash]` mapping, checked in `validateOrder`.
+- Taker verification: either store the taker address at registration time (adds storage cost) or require the caller to pass order parameters so the zone can re-derive the taker from `zoneHash`.
+- Only meaningful for directed offers — open offers have no specific taker to refuse.
+- Requires OTCZone redeployment on all chains (contract is immutable). Bundle with other contract changes to avoid redundant redeploys.
+
 ### Criteria-Based Offers
 - Seaport natively supports criteria-based offers (e.g., "any Bored Ape")
 - Use merkle trees of token IDs, or wildcard (criteria = 0 for any token in collection)
