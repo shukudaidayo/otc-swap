@@ -456,6 +456,7 @@ footer {
   flex-direction: column;
   gap: 0.1rem;
   min-width: 0;
+  overflow: hidden;
 }
 
 .asset-card-name {
@@ -1538,7 +1539,7 @@ footer {
 .nft-grid-check {
   position: absolute;
   top: 4px;
-  right: 4px;
+  left: 4px;
   background: #4c4;
   color: #000;
   width: 20px;
@@ -1751,6 +1752,10 @@ footer {
   margin-bottom: 1.5rem;
 }
 
+.review-side {
+  min-width: 0;
+}
+
 .review-side h3 {
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
@@ -1761,6 +1766,7 @@ footer {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .review-meta {

@@ -155,7 +155,7 @@ export default function AssetCard({ asset, chainId, compact = true, showUnverifi
         )}
       </div>
       <div className="asset-card-info">
-        <span className="asset-card-name">
+        <span className="asset-card-name" title={displayName}>
           {displayName}
           {isERC1155 && <span className="asset-detail"> &times;{asset.amount}</span>}
         </span>

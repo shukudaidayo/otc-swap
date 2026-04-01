@@ -230,9 +230,10 @@ export default function Offer() {
       updateStep(actionIndex, { status: 'signing' })
       const { wait } = await fulfillOrder(wallet.provider, orderData.order)
       updateStep(actionIndex, { status: 'confirming' })
-      await wait()
+      const receipt = await wait()
       updateStep(actionIndex, { status: 'done' })
 
+      setFillTxHash(receipt.hash)
       setStatusLabel('filled')
     } catch (err) {
       console.error(err)
