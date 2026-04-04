@@ -194,6 +194,7 @@ Path-based routing with Cloudflare Pages SPA fallback (`_redirects`).
    - If valid and user is eligible: "Accept Offer" button triggers a verification modal listing any unverified NFTs the taker is receiving (maker's offer items) before proceeding, with OpenSea links for review. If all received assets are verified, proceeds directly.
    - If user is maker: "Cancel Offer" button
    - Switch chain warning only shown for open offers
+   - For filled offers, when the connected wallet is maker or taker: share section with a client-side Canvas-generated trade image (1200x630, dark theme, both sides' assets with thumbnails, ENS names, "Deal struck!" heading, Ocarina branding). Includes "Share on X" (tweet intent with `@ocarinatrade`, no link), "Copy Image" (clipboard API), and "Save Image" (PNG download)
 
 4. **`/faq`** - FAQ page
    - Scrollable Q&A with sticky sidebar navigation (sidebar hidden on mobile)

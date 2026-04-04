@@ -4,6 +4,8 @@ import { getOrderFromTx, getOrderStatus, fulfillOrder, cancelOrder, ensureApprov
 import { checkHoldings } from '../lib/balances'
 import { getVerificationStatus } from '../lib/verification'
 import { fetchMetadata } from '../lib/metadata'
+import { resolveENS } from '../lib/ens'
+import { generateTradeImage, preloadAssetImages } from '../lib/share-image'
 import AssetCard from '../components/asset-card'
 import AddressDisplay from '../components/address-display'
 import { truncateAddress } from '../lib/wallet'
@@ -57,6 +59,9 @@ export default function Offer() {
   const [showVerifyModal, setShowVerifyModal] = useState(false)
   const [unverifiedAssets, setUnverifiedAssets] = useState([])
   const [fillTxHash, setFillTxHash] = useState(null)
+  const [shareImageBlob, setShareImageBlob] = useState(null)
+  const [shareImageUrl, setShareImageUrl] = useState(null)
+  const [generatingImage, setGeneratingImage] = useState(false)
 
   // Fetch order data from tx hash
   useEffect(() => {
@@ -110,6 +115,83 @@ export default function Offer() {
     })
     return () => { cancelled = true }
   }, [orderData, statusLabel, chainId])
+
+  // Generate share image when offer is filled
+  useEffect(() => {
+    if (!orderData || statusLabel !== 'filled') return
+    let cancelled = false
+    setGeneratingImage(true)
+
+    ;(async () => {
+      const params = orderData.order.parameters
+      const cid = Number(chainId)
+
+      // Fetch metadata for all items
+      const offerItems = await Promise.all(params.offer.map(async (o) => {
+        const it = Number(o.itemType)
+        let _name = null, _image = null
+        if (it >= 2) {
+          try {
+            const meta = await fetchMetadata(cid, o.token, o.identifierOrCriteria, it === 3 ? 1 : 0)
+            _name = meta?.name
+            _image = meta?.image
+          } catch { /* ignore */ }
+        }
+        return { ...o, itemType: it, _name, _image }
+      }))
+
+      const considerationItems = await Promise.all(params.consideration.map(async (c) => {
+        const it = Number(c.itemType)
+        let _name = null, _image = null
+        if (it >= 2) {
+          try {
+            const meta = await fetchMetadata(cid, c.token, c.identifierOrCriteria, it === 3 ? 1 : 0)
+            _name = meta?.name
+            _image = meta?.image
+          } catch { /* ignore */ }
+        }
+        return { ...c, itemType: it, _name, _image }
+      }))
+
+      // Preload images for canvas
+      await preloadAssetImages(offerItems, cid)
+      await preloadAssetImages(considerationItems, cid)
+
+      // Resolve ENS names
+      const [makerENS, takerENS] = await Promise.all([
+        resolveENS(params.offerer),
+        orderData.taker !== ZERO_ADDRESS ? resolveENS(orderData.taker) : Promise.resolve(null),
+      ])
+
+      if (cancelled) return
+
+      const blob = await generateTradeImage({
+        maker: params.offerer,
+        makerENS,
+        taker: orderData.taker,
+        takerENS,
+        chainId: cid,
+        offerItems,
+        considerationItems,
+      })
+
+      if (!cancelled && blob) {
+        setShareImageBlob(blob)
+        setShareImageUrl(URL.createObjectURL(blob))
+      }
+    })().finally(() => {
+      if (!cancelled) setGeneratingImage(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [orderData, statusLabel, chainId])
+
+  // Clean up object URL
+  useEffect(() => {
+    return () => { if (shareImageUrl) URL.revokeObjectURL(shareImageUrl) }
+  }, [shareImageUrl])
 
   // Check holdings when order is loaded and open
   useEffect(() => {
@@ -414,6 +496,50 @@ export default function Offer() {
           )
         })()}
       </div>
+
+      {statusLabel === 'filled' && (isMaker || isTaker) && (
+        <div className="share-section">
+          {shareImageUrl && (
+            <div className="share-preview">
+              <img src={shareImageUrl} alt="Trade summary" />
+            </div>
+          )}
+          {generatingImage && <p className="text-muted">Generating share image...</p>}
+          <div className="share-buttons">
+            <a
+              className="btn btn-primary btn-sm"
+              href={`https://x.com/intent/tweet?text=${encodeURIComponent('I just struck a deal on @ocarinatrade! 🤝')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Share on X
+            </a>
+            {shareImageBlob && navigator.clipboard?.write && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.write([
+                      new ClipboardItem({ 'image/png': shareImageBlob })
+                    ])
+                  } catch { /* fallback silently */ }
+                }}
+              >
+                Copy Image
+              </button>
+            )}
+            {shareImageBlob && (
+              <a
+                className="btn btn-secondary btn-sm"
+                href={shareImageUrl}
+                download={`ocarina-trade-${chainId}-${txHash.slice(0, 10)}.png`}
+              >
+                Save Image
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {error && <p className="form-error">{error}</p>}
       <TxChecklist steps={steps} />
