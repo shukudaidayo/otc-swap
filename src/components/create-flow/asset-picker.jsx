@@ -88,12 +88,15 @@ function normalizeCollection(col, chainId) {
 
 /**
  * Sort collection entries: verified first, then named, then unnamed.
+ * Within each tier, sort by number of tokens owned (descending).
  */
 function sortCollectionEntries(entries) {
   return entries.sort(([, a], [, b]) => {
     const scoreA = a.isVerified ? 0 : (a.name && !a.name.includes('...')) ? 1 : 2
     const scoreB = b.isVerified ? 0 : (b.name && !b.name.includes('...')) ? 1 : 2
-    return scoreA - scoreB
+    if (scoreA !== scoreB) return scoreA - scoreB
+    // Within same tier, more tokens owned = higher priority
+    return (Number(b.tokenCount) || 0) - (Number(a.tokenCount) || 0)
   })
 }
 

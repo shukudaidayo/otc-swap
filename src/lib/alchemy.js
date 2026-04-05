@@ -29,7 +29,7 @@ export async function fetchCollections(address, chainId, pageKey = null) {
   const network = CHAIN_NETWORKS[chainId]
   if (!network) throw new Error(`Unsupported chain: ${chainId}`)
 
-  let url = `https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getContractsForOwner?owner=${address}&withMetadata=true&pageSize=50`
+  let url = `https://${network}.g.alchemy.com/nft/v3/${ALCHEMY_API_KEY}/getContractsForOwner?owner=${address}&withMetadata=true&pageSize=50&orderBy=transferTime`
   if (pageKey) url += `&pageKey=${encodeURIComponent(pageKey)}`
 
   const res = await fetch(url)
